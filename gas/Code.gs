@@ -22,6 +22,7 @@ function setup() {
   sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold').setBackground('#F7D3E4');
   sh.setFrozenRows(1);
   sh.getRange('A:A').setNumberFormat('yyyy/mm/dd hh:mm');
+  sh.getRange('B:B').setNumberFormat('yyyy/mm/dd');
   sh.setColumnWidth(1, 140);
   sh.setColumnWidth(7, 200);
 
@@ -30,8 +31,9 @@ function setup() {
   daily.getRange('A1').setFormula(
     "=IFERROR(QUERY('" + SHEET_LOG + "'!A:L," +
     "\"select B, C, E, count(G), sum(K) where C is not null group by B, C, E order by B desc " +
-    "label B '日付', C '学習者', E 'フェーズ', count(G) '回数', sum(K) '時間(秒)'\",1),\"まだ記録がありません\")"
+    "label B '日付', C '学習者', E 'フェーズ', count(G) '回数', sum(K) '時間(秒)' format B 'yyyy/mm/dd'\",1),\"まだ記録がありません\")"
   );
+  daily.getRange('A:A').setNumberFormat('yyyy/mm/dd');
   daily.setFrozenRows(1);
 }
 
