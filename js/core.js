@@ -23,6 +23,17 @@
   let voices = [];
   function loadVoices() { voices = synth ? synth.getVoices() : []; }
   if (synth) { loadVoices(); synth.onvoiceschanged = loadVoices; }
+  // iPhone / iPad：最初のタップで読み上げを「解錠」しておく（以降は自動で読める）
+  let unlocked = false;
+  function unlockSpeech() {
+    if (unlocked || !synth) return;
+    unlocked = true;
+    try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; synth.speak(u); } catch (e) {}
+    loadVoices();
+  }
+  ["pointerdown", "touchend", "click"].forEach((ev) => document.addEventListener(ev, unlockSpeech, { once: true, passive: true }));
+  // アプリを閉じたり別のアプリに切り替えたら読み上げを止める
+  document.addEventListener("visibilitychange", () => { if (document.hidden && synth) { token++; synth.cancel(); } });
   function voiceFor(lang) {
     const pref = lang === "en" ? ["Samantha", "Google US English", "Microsoft Aria", "Karen", "Daniel"] : ["Kyoko", "O-Ren", "Google 日本語", "Microsoft Nanami", "Haruka"];
     const list = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith(lang === "en" ? "en" : "ja"));
@@ -44,6 +55,7 @@
       // 一部ブラウザで onend が来ないときの保険
       setTimeout(fin, 1500 + text.length * (lang === "en" ? 140 : 220) / u.rate);
       synth.speak(u);
+      if (synth.paused) synth.resume();
     });
   }
   const Speech = {
@@ -100,7 +112,7 @@
     // kind: "tap"（②の動画：ポーズとくるり）/ "clear"（③の動画：ひかりと バイバイ）
     play(kind, line) {
       if (line) this.say(line);
-      if (kind === "wrong") { this.box.classList.remove("shake"); void this.box.offsetWidth; this.box.classList.add("shake"); return; }
+      if (kind === "wrong") { this.box.classList.remove("shake"); void this.box.offsetWidth; this.box.classList.add("shake"); try { navigator.vibrate && navigator.vibrate(60); } catch (e) {} return; }
       if (kind === "correct") kind = "tap";
       if (this.current === "clear" && kind === "tap") return; // クリア演出中は上書きしない
       this.current = kind;

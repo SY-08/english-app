@@ -460,13 +460,22 @@
       </section>`;
     const intro = () => Speech.say("おおきい もじと ちいさい もじを つなごう", "Connect the big letters to the little letters.", { el: $("#ask") });
     $("#ask").onclick = intro; intro();
-    const drawLine = (a, b) => {
-      const box = $("#mb").getBoundingClientRect();
-      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const pairs = [];
+    const COLORS = ["#C2357A", "#3E7CC9", "#4FA35B", "#F2994A", "#B48AD6"];
+    const redraw = () => {
+      const mb = $("#mb"); if (!mb) return;
+      const box = mb.getBoundingClientRect();
       const svg = $("#ml");
       svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
-      svg.insertAdjacentHTML("beforeend", `<line x1="${ra.right - box.left}" y1="${ra.top + ra.height / 2 - box.top}" x2="${rb.left - box.left}" y2="${rb.top + rb.height / 2 - box.top}" stroke="${pick(["#C2357A", "#3E7CC9", "#4FA35B", "#F2994A", "#B48AD6"])}"/>`);
+      svg.innerHTML = pairs.map(([a, b], k) => {
+        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        return `<line x1="${ra.right - box.left}" y1="${ra.top + ra.height / 2 - box.top}" x2="${rb.left - box.left}" y2="${rb.top + rb.height / 2 - box.top}" stroke="${COLORS[k % COLORS.length]}"/>`;
+      }).join("");
     };
+    const drawLine = (a, b) => { pairs.push([a, b]); redraw(); };
+    // 画面を回転したら線を引き直す
+    const onResize = () => { if (!document.body.contains($("#mb"))) return window.removeEventListener("resize", onResize); redraw(); };
+    window.addEventListener("resize", onResize);
     $$(".left .lt").forEach((b) => b.addEventListener("click", () => {
       if (b.classList.contains("done")) return;
       $$(".left .lt").forEach((x) => x.classList.remove("sel"));
