@@ -56,6 +56,7 @@
         </div>
       </section>`;
     $$("[data-go]").forEach((b) => b.addEventListener("click", () => { Settings.save({ mode: b.dataset.go }); go(b.dataset.go); }));
+    Cheer.say("Hello!", "いっしょに えいごで あそぼう！");
   };
 
   // ---------------- 大人用（あとで構築） ----------------
@@ -95,7 +96,8 @@
         </div>
         <div class="week"><p>がんばった日</p><ul>${week}</ul></div>
       </section>`;
-    Cheer.say(pick(Cheer.LINES.hello));
+    Cheer.say(name ? `Hello, ${name}!` : "Hello!", "きょうは どれで あそぶ？");
+    Speech.say(`${name ? name + "、" : ""}きょうは どれで あそぶ？`, "Let's play!", { noBubble: true });
   };
 
   // ---------------- ① ストーリー ----------------
@@ -124,6 +126,7 @@
       $("#page").innerHTML = A.scene(p);
       $("#page").classList.remove("turn"); void $("#page").offsetWidth; $("#page").classList.add("turn");
       $("#stext").innerHTML = `<p class="en">${esc(p.en)}</p><p class="ja">${esc(p.ja)}</p>`;
+      Cheer.say(p.en, p.ja);
       $$("#pager li").forEach((li) => li.classList.toggle("on", +li.dataset.n === i));
       $("#prev").disabled = i === 0;
       $("#next").disabled = i === pages.length - 1;
@@ -195,6 +198,7 @@
         </div>
         <p class="progress" id="prog">0 / ${sec.cards.length}</p>
       </section>`;
+    Cheer.say("Tap a card!", "カードを タップしてね");
     $$(".card").forEach((btn) =>
       btn.addEventListener("click", async () => {
         const c = sec.cards[+btn.dataset.n];
@@ -232,6 +236,7 @@
         ${D.sections.map((s) => `<a class="menu-card" href="#/tap/${s.id}"><span class="mc-art">${A.render(s.icon)}</span><b>${esc(s.ja)}</b><small>${esc(s.title)}</small></a>`).join("")}
         <a class="menu-card special" href="#/tap/sugoroku"><span class="mc-art">${A.render("emoji:🎲")}</span><b>すごろく</b><small>Start → Finish</small></a>
       </section>`;
+    Cheer.say("Tap and listen!", "どれを きいてみる？");
   }
 
   // すごろく（p.30-31）：止まったマスを読む
@@ -254,6 +259,7 @@
           <div class="said" id="said"><p class="en">サイコロを ふってね</p></div>
         </div>
       </section>`;
+    Cheer.say("Roll the dice!", "サイコロを ふってね");
     const board = $(".board");
     const piece = document.createElement("div");
     piece.className = "piece";
@@ -310,6 +316,7 @@
     if (!id) {
       view().innerHTML = `${topbar("ゲームで あそぼう", "kids", "Games")}
         <section class="menu-grid">${GAMES.map((g) => `<a class="menu-card" href="#/game/${g.id}"><span class="mc-art">${A.render(g.icon)}</span><b>${g.ja}</b><small>${g.en}</small></a>`).join("")}</section>`;
+      Cheer.say("Let's play a game!", "どの ゲームに する？");
       return;
     }
     const fn = { hunt: gameHunt, dots: gameDots, match: gameMatch, listen: gameListen, opposite: gameOpposite, shadow: gameShadow }[id];
@@ -319,6 +326,7 @@
   function chooser(title, back, sub, items, hrefFn) {
     view().innerHTML = `${topbar(title, back, sub)}
       <section class="chooser">${items.map((it) => `<a class="choose" href="${hrefFn(it)}"><span class="ch-emoji">${it.emoji}</span><b>${it.label}</b><small>${it.small || ""}</small></a>`).join("")}</section>`;
+    Cheer.say("Which one?", "どれに する？");
   }
 
   function finishGame(name, correct, total, extraMsg) {
@@ -519,7 +527,7 @@
           <button class="ask big" id="ask"><span class="ask-emoji">🔈</span><span><b>よく きいて えらんでね</b><small>Listen and choose.</small></span></button>
           <div class="opts">${opts.map((o) => `<button class="opt" data-id="${o.id}">${A.render(o.art)}</button>`).join("")}</div>
         </section>`;
-      const play = () => Speech.en(q.c.en, { el: $("#ask") });
+      const play = () => Speech.en(q.c.en, { el: $("#ask"), bubble: ["Listen!", "よく きいて えらんでね"] });
       $("#ask").onclick = play;
       setTimeout(play, 300);
       $$(".opt").forEach((b) => b.addEventListener("click", async () => {
@@ -536,7 +544,7 @@
             view().innerHTML = resultHtml(score, qs.length, "listen");
             finishGame("きいてえらぼう", score, qs.length, `${qs.length}もん中 ${score}もん せいかい！`);
           }
-        } else { tries++; bump(b, false); b.disabled = true; setTimeout(play, 500); }
+        } else { tries++; bump(b, false); b.disabled = true; setTimeout(play, 700); }
       }));
     };
     draw();

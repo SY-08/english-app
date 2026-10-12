@@ -94,15 +94,21 @@
   }
   const Speech = {
     get speaking() { return speakingFlag; },
-    stop() { token++; if (synth) synth.cancel(); setSpeaking(false); },
+    stop() { token++; if (synth) synth.cancel(); setSpeaking(false); if (typeof Cheer !== "undefined") Cheer.talk(false); },
     // 日本語 → 英語 の順で読む（設定で英語だけにもできる）
     async say(ja, en, opts = {}) {
       this.stop();
       const my = token;
       setSpeaking(true, opts.el);
+      if (!opts.noBubble) {
+        if (opts.bubble) Cheer.say(opts.bubble[0], opts.bubble[1]);
+        else Cheer.say(en || ja, en && Settings.data.order !== "en" ? ja || "" : "");
+        if (!opts.bubble) Cheer.lastLine = { ja, en };
+      }
+      Cheer.talk(true);
       if (ja && Settings.data.order !== "en" && !opts.enOnly) { await speakOne(ja, "ja", my); await wait(Settings.data.speed === "slow" ? 650 : 350); }
       if (en) await speakOne(en, "en", my);
-      if (my === token) setSpeaking(false, opts.el);
+      if (my === token) { setSpeaking(false, opts.el); Cheer.talk(false); }
     },
     en(text, opts = {}) { return this.say(null, text, opts); },
     voiceList(lang) { return rankVoices(lang); },
@@ -126,29 +132,43 @@
   };
   const Cheer = {
     init() {
+      this.guide = document.getElementById("guide");
       this.box = document.getElementById("cheer");
       this.idle = document.getElementById("cheerIdle");
       this.act = document.getElementById("cheerAct");
       this.bubble = document.getElementById("cheerBubble");
+      this.popEl = document.getElementById("cheerPop");
       this.stage = document.getElementById("clearStage");
       this.act.addEventListener("ended", () => this.endAction());
       this.stage.addEventListener("click", () => this.endAction());
-      this.box.addEventListener("click", () => (this.current === "clear" ? this.endAction() : this.play("tap", pick(LINES.tap))));
+      this.box.addEventListener("click", () => {
+        if (this.current === "clear") return this.endAction();
+        this.play("tap", pick(LINES.tap));
+        if (this.lastLine) Speech.say(this.lastLine.ja, this.lastLine.en); // キャラをタップすると、さっきの言葉をもう一度
+      });
       const tryIdle = () => { const p = this.idle.play(); if (p) p.catch(() => {}); };
       tryIdle();
       document.addEventListener("pointerdown", tryIdle, { once: true });
     },
-    say(text, ms = 2200) {
+    // ふきだし（キャラが話している言葉）。main = 大きく、sub = 小さく
+    say(main, sub = "") {
       if (!this.bubble) return;
-      this.bubble.textContent = text;
-      this.bubble.classList.add("show");
-      clearTimeout(this._t);
-      this._t = setTimeout(() => this.bubble.classList.remove("show"), ms);
+      this.bubble.querySelector(".gb-main").textContent = main || "";
+      this.bubble.querySelector(".gb-sub").textContent = sub || "";
+      this.bubble.classList.remove("new"); void this.bubble.offsetWidth; this.bubble.classList.add("new");
+    },
+    // 読み上げ中はキャラが話しているように動く
+    talk(on) { if (this.guide) this.guide.classList.toggle("talking", on); },
+    // 「いいね！」などの短いひとこと（キャラの頭の上にポンと出る）
+    pop(text) {
+      if (!this.popEl || !text) return;
+      this.popEl.textContent = text;
+      this.popEl.classList.remove("show"); void this.popEl.offsetWidth; this.popEl.classList.add("show");
     },
     // kind: "tap"（②の動画：ポーズとくるり）/ "clear"（③の動画：ひかりと バイバイ）
     play(kind, line) {
-      if (line) this.say(line);
-      if (kind === "wrong") { this.box.classList.remove("shake"); void this.box.offsetWidth; this.box.classList.add("shake"); try { navigator.vibrate && navigator.vibrate(60); } catch (e) {} return; }
+      if (kind === "wrong") { this.pop(line); this.box.classList.remove("shake"); void this.box.offsetWidth; this.box.classList.add("shake"); try { navigator.vibrate && navigator.vibrate(60); } catch (e) {} return; }
+      if (kind !== "clear") this.pop(line);
       if (kind === "correct") kind = "tap";
       if (this.current === "clear" && kind === "tap") return; // クリア演出中は上書きしない
       this.current = kind;
