@@ -141,3 +141,71 @@ window.DATA = {
     { id: "s-z", label: "S〜Z", letters: "STUVWXYZ" }
   ]
 };
+
+// =============================================================
+//  ゲーム用のことば（教材のことば＋Review ページの ことば＋よく使う ことば）
+//  word = たんご / sent = みじかい文 / ja = にほんご / art = え
+// =============================================================
+(function () {
+  const C = (id, label, ja, sentence, rows) => ({
+    id, label, ja,
+    items: rows.map(([word, wja, art, sjaOverride]) => ({
+      id: id + ":" + word, cat: id, word, ja: wja, art,
+      sent: sentence(word), sja: sjaOverride || wja
+    }))
+  });
+  const a = (w) => (/^[aeiou]/.test(w) ? "an " : "a ") + w;
+  window.DATA.vocab = [
+    C("items", "もの", "もの", (w) => `I want ${a(w.replace("jumprope", "jump rope"))}.`, [
+      ["bag", "カバン", "item:bag"], ["train", "でんしゃ", "item:train"], ["bike", "じてんしゃ", "item:bike"],
+      ["doll", "にんぎょう", "item:doll"], ["book", "ほん", "item:book"], ["robot", "ロボット", "item:robot"],
+      ["jumprope", "なわとび", "item:jumprope"]
+    ]),
+    C("shapes", "かたち", "かたち", (w) => `It's ${a(w)}.`, [
+      ["circle", "まる", "shape:circle"], ["diamond", "ひしがた", "shape:diamond"], ["heart", "ハート", "shape:heart"],
+      ["rectangle", "ながしかく", "shape:rectangle"], ["square", "しかく", "shape:square"], ["star", "ほし", "shape:star"],
+      ["triangle", "さんかく", "shape:triangle"]
+    ]),
+    C("family", "かぞく", "かぞく", (w) => (w === "Sam" ? "This is my friend Sam." : `This is my ${w}.`), [
+      ["father", "おとうさん", "face:father"], ["mother", "おかあさん", "face:mother"], ["brother", "おにいさん", "face:brother"],
+      ["sister", "おねえさん", "face:sister"], ["grandfather", "おじいさん", "face:grandfather"], ["grandmother", "おばあさん", "face:grandmother"],
+      ["Sam", "ともだちの サム", "face:sam"]
+    ]),
+    C("time", "じかん", "じかん", (w) => `It's ${w} o'clock.`, [
+      ["one", "1じ", "clock:1"], ["two", "2じ", "clock:2"], ["three", "3じ", "clock:3"], ["four", "4じ", "clock:4"],
+      ["five", "5じ", "clock:5"], ["six", "6じ", "clock:6"], ["seven", "7じ", "clock:7"], ["eight", "8じ", "clock:8"],
+      ["nine", "9じ", "clock:9"], ["ten", "10じ", "clock:10"], ["eleven", "11じ", "clock:11"], ["twelve", "12じ", "clock:12"]
+    ]),
+    C("animals", "どうぶつ", "どうぶつ", (w) => `It's ${a(w)}.`, [
+      ["dog", "いぬ", "emoji:🐶"], ["cat", "ねこ", "emoji:🐱"], ["rabbit", "うさぎ", "emoji:🐰"], ["penguin", "ペンギン", "emoji:🐧"],
+      ["elephant", "ぞう", "emoji:🐘"], ["horse", "うま", "emoji:🐴"], ["bird", "とり", "emoji:🐦"], ["fish", "さかな", "emoji:🐟"],
+      ["bear", "くま", "emoji:🐻"], ["pig", "ぶた", "emoji:🐷"], ["lion", "ライオン", "emoji:🦁"], ["monkey", "さる", "emoji:🐵"],
+      ["octopus", "タコ", "emoji:🐙"], ["turtle", "カメ", "emoji:🐢"], ["zebra", "シマウマ", "emoji:🦓"]
+    ]),
+    C("clothes", "ふく", "ふく", (w) => `Put on your ${w}.`, [
+      ["coat", "コート", "emoji:🧥"], ["gloves", "てぶくろ", "emoji:🧤"], ["dress", "ワンピース", "emoji:👗"], ["socks", "くつした", "emoji:🧦"],
+      ["jeans", "ジーンズ", "emoji:👖"], ["shorts", "はんズボン", "emoji:🩳"], ["cap", "ぼうし", "emoji:🧢"], ["shoes", "くつ", "emoji:👟"],
+      ["scarf", "マフラー", "emoji:🧣"], ["shirt", "シャツ", "emoji:👕"]
+    ]),
+    C("weather", "てんき", "てんき", (w) => `It's ${w}.`, [
+      ["sunny", "はれ", "emoji:☀️"], ["rainy", "あめ", "emoji:🌧️"], ["cloudy", "くもり", "emoji:☁️"], ["snowy", "ゆき", "emoji:⛄"],
+      ["windy", "かぜが つよい", "emoji:🌬️"]
+    ]),
+    C("colors", "いろ", "いろ", (w) => `It's ${w}.`, [
+      ["red", "あか", "color:red"], ["blue", "あお", "color:blue"], ["yellow", "きいろ", "color:yellow"], ["green", "みどり", "color:green"],
+      ["pink", "ピンク", "color:pink"], ["orange", "オレンジ", "color:orange"], ["purple", "むらさき", "color:purple"], ["black", "くろ", "color:black"],
+      ["white", "しろ", "color:white"], ["brown", "ちゃいろ", "color:brown"]
+    ]),
+    C("numbers", "かず", "かず", (w) => `I see ${w} ${w === "one" ? "star" : "stars"}.`, [
+      ["one", "1", "count:1"], ["two", "2", "count:2"], ["three", "3", "count:3"], ["four", "4", "count:4"], ["five", "5", "count:5"],
+      ["six", "6", "count:6"], ["seven", "7", "count:7"], ["eight", "8", "count:8"], ["nine", "9", "count:9"], ["ten", "10", "count:10"]
+    ]),
+    C("fruits", "くだもの", "くだもの", (w) => `I like ${w === "peach" ? "peaches" : w === "strawberry" ? "strawberries" : w === "cherry" ? "cherries" : w + "s"}.`, [
+      ["apple", "りんご", "emoji:🍎"], ["banana", "バナナ", "emoji:🍌"], ["grape", "ぶどう", "emoji:🍇"], ["strawberry", "いちご", "emoji:🍓"],
+      ["peach", "もも", "emoji:🍑"], ["watermelon", "すいか", "emoji:🍉"], ["orange", "オレンジ", "emoji:🍊"], ["lemon", "レモン", "emoji:🍋"],
+      ["cherry", "さくらんぼ", "emoji:🍒"], ["melon", "メロン", "emoji:🍈"]
+    ])
+  ];
+  // 読みやすい表示用（jumprope → jump rope）
+  window.DATA.vocab.forEach((c) => c.items.forEach((it) => { it.label = it.word === "jumprope" ? "jump rope" : it.word; }));
+})();

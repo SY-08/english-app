@@ -221,6 +221,22 @@
         return wrap(person(arg, extra.mood), "0 0 200 240");
       case "opp":
         return wrap(opposite(arg), "0 0 200 200");
+      case "color": {
+        const COL = { red: "#E53935", blue: "#1E6FD9", yellow: "#FBC02D", green: "#43A047", pink: "#F48FB1", orange: "#FB8C00", purple: "#8E44AD", black: "#2B2B2B", white: "#FFFFFF", brown: "#8D5A2B" };
+        return wrap(`<path d="M100 26 C150 22 178 60 172 104 C166 150 128 176 92 172 C48 168 22 136 28 94 C34 54 62 30 100 26Z" fill="${COL[arg] || arg}" ${S}/><ellipse cx="78" cy="72" rx="16" ry="10" fill="#fff" opacity=".35"/>`, "0 0 200 200");
+      }
+      case "count": {
+        const n = +arg; let out = "";
+        const cols = n <= 4 ? 2 : n <= 6 ? 3 : n <= 9 ? 3 : 4;
+        const rows = Math.ceil(n / cols), cell = 180 / Math.max(cols, rows);
+        for (let i = 0; i < n; i++) {
+          const cx = 10 + cell * (i % cols) + cell / 2 + (180 - cell * cols) / 2, cy = 10 + cell * Math.floor(i / cols) + cell / 2 + (180 - cell * rows) / 2, r = cell * 0.4;
+          let p = "";
+          for (let k = 0; k < 10; k++) { const ang = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; p += (k ? "L" : "M") + (cx + rr * Math.cos(ang)).toFixed(1) + " " + (cy + rr * Math.sin(ang)).toFixed(1); }
+          out += `<path d="${p}Z" fill="#FFD166" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>`;
+        }
+        return wrap(out, "0 0 200 200");
+      }
       case "emoji": {
         const parts = arg.split("|");
         return `<div class="emoji-art">${parts.map((e, i) => `<span class="e${i}">${e}</span>`).join("")}</div>`;

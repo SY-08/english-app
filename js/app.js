@@ -304,29 +304,302 @@
   }
 
   // ---------------- ③ ゲーム ----------------
+  // ・毎回ちがう問題（ことば93こ から ランダム）
+  // ・★ → ★★ → ★★★ で むずかしく
+  // ・まちがえた ことばは 次から 多めに出る
+  const VOCAB = D.vocab;
+  const ALL = VOCAB.flatMap((c) => c.items);
+  const catOf = (id) => VOCAB.find((c) => c.id === id);
+  const STARS = (l) => "★".repeat(l);
+  const { store } = window.CORE;
+  const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const sample = (arr, n) => shuffle(arr).slice(0, n);
+
   const GAMES = [
-    { id: "hunt", ja: "もじ さがし", en: "Find the letters", icon: "emoji:🔍" },
-    { id: "dots", ja: "てん つなぎ", en: "Connect the dots", icon: "emoji:✏️" },
-    { id: "match", ja: "おおもじ・こもじ", en: "Big & little letters", icon: "emoji:🔤" },
-    { id: "listen", ja: "きいて えらぼう", en: "Listen and choose", icon: "emoji:👂" },
-    { id: "opposite", ja: "どっちかな？", en: "Big or little?", icon: "opp:big" },
-    { id: "shadow", ja: "かげ あて", en: "Who's this?", icon: "emoji:👤" }
+    { id: "listen", ja: "きいて えらぼう", en: "Listen and choose", icon: "emoji:👂", lv: ["ことばを きいて えを えらぶ（3つから）", "みじかい ぶんを きいて えらぶ（4つから）", "ぶんを きいて えらぶ（6つから）"] },
+    { id: "first", ja: "さいしょの もじ", en: "First letter", icon: "emoji:🅰️", lv: ["えの ことばは なにで はじまる？（おおもじ）", "こもじで こたえる", "にている もじ（b d p q）も まざる"] },
+    { id: "read", ja: "よんで えらぼう", en: "Read and choose", icon: "emoji:📖", lv: ["たんごを よんで えを えらぶ", "4つから えらぶ", "ぶんを よんで えらぶ"] },
+    { id: "spell", ja: "ことばを つくろう", en: "Spell the word", icon: "emoji:✏️", lv: ["3もじの ことば（うすい もじが ヒント）", "4〜5もじ（さいしょの もじだけ ヒント）", "ながい ことば（ヒント なし）"] },
+    { id: "shadow", ja: "かげ あて", en: "Guess the shadow", icon: "emoji:👤", lv: ["かげを みて えらぶ（3つから）", "おなじ なかまから 4つ", "かげの いちぶ だけ みえる"] },
+    { id: "opposite", ja: "どっちかな？", en: "Big or little?", icon: "opp:big", lv: ["おおきい？ ちいさい？", "どれが おおきい／ながい？（3つから）", "おおきさが にている 4つから"] },
+    { id: "hunt", ja: "もじ さがし", en: "Find the letters", icon: "emoji:🔍", lv: ["1しゅるいの もじを ぜんぶ さがす", "にている もじが まざる（3かい）", "えの さいしょの もじを さがす（3かい）"] },
+    { id: "dots", ja: "ABC てん つなぎ", en: "Connect A to Z", icon: "emoji:🔗", lv: ["おおもじを ABC じゅんに 6こ", "こもじを abc じゅんに 10こ（ヒント なし）", "Aa Bb Cc… おおもじと こもじを じゅんばんに"] },
+    { id: "match", ja: "なかま あわせ", en: "Match", icon: "emoji:🧩", lv: ["おおもじと こもじ（5くみ）", "にている こもじも（7くみ）", "えいごの ことばと え（6くみ）"] },
+    { id: "mix", ja: "ランダム チャレンジ", en: "Random challenge", icon: "emoji:🎲", special: true, lv: ["いろんな ゲームが ランダムに 10もん", "いろんな ゲームが ランダムに 10もん", "いろんな ゲームが ランダムに 12もん"] }
   ];
-  routes.game = (id, arg) => {
+  const gameById = (id) => GAMES.find((g) => g.id === id);
+
+  // 苦手な ことば・まだ出ていない ことばを 多めに えらぶ
+  const Stats = {
+    get() { return store.get("wordstats", {}); },
+    mark(id, ok) {
+      if (!id) return;
+      const s = this.get(); const r = s[id] || { seen: 0, wrong: 0, right: 0 };
+      r.seen++; if (ok) r.right++; else r.wrong++;
+      s[id] = r; store.set("wordstats", s);
+      const recent = store.get("recentwords", []); recent.unshift(id); store.set("recentwords", recent.slice(0, 30));
+    },
+    pick(pool, n) {
+      const s = this.get(), recent = store.get("recentwords", []);
+      const items = pool.map((it) => {
+        const r = s[it.id] || { seen: 0, wrong: 0, right: 0 };
+        let w = 1 + r.wrong * 1.5 - Math.min(r.right, 4) * 0.2 + (r.seen ? 0 : 1);
+        if (recent.slice(0, 12).includes(it.id)) w *= 0.35;
+        return { it, w: Math.max(0.15, w) * (0.6 + Math.random() * 0.8) };
+      });
+      const out = [];
+      while (out.length < n && items.length) {
+        const total = items.reduce((t, x) => t + x.w, 0);
+        let r = Math.random() * total, k = 0;
+        while (r > items[k].w && k < items.length - 1) { r -= items[k].w; k++; }
+        out.push(items.splice(k, 1)[0].it);
+      }
+      return out;
+    }
+  };
+  const Levels = {
+    get(id) { return store.get("gamelevels", {})[id] || 1; },
+    up(id, lv) { const all = store.get("gamelevels", {}); all[id] = Math.max(all[id] || 1, Math.min(3, lv)); store.set("gamelevels", all); }
+  };
+  // まちがい用の えらびし（同じ なかまから、同じ ことば・同じ え は 出さない）
+  function distractors(it, k, pool) {
+    const same = (pool || catOf(it.cat).items).filter((x) => x.id !== it.id && x.art !== it.art && x.label !== it.label);
+    let out = sample(same, k);
+    if (out.length < k) out = out.concat(sample(ALL.filter((x) => x.id !== it.id && !out.includes(x) && x.art !== it.art), k - out.length));
+    return out;
+  }
+  const PIC_CATS = ["items", "shapes", "family", "animals", "fruits", "clothes", "colors", "weather", "numbers", "time"];
+  const picPool = (cats) => ALL.filter((x) => cats.includes(x.cat));
+  const optPic = (x, withWord) => ({ id: x.id, html: A.render(x.art) + (withWord ? `<small>${esc(x.label)}</small>` : "") });
+
+  // ---------- 問題を つくる ----------
+  const MAKE = {
+    listen(lv, n) {
+      const cats = lv === 1 ? ["items", "shapes", "family", "animals", "fruits", "colors"] : PIC_CATS;
+      return Stats.pick(picPool(cats), n).map((it) => {
+        const k = lv === 1 ? 2 : lv === 2 ? 3 : 5;
+        const en = lv === 1 ? it.label : it.sent;
+        return {
+          wordId: it.id, title: "Listen and choose.", sub: "よく きいて えらんでね", big: true,
+          speak: { en, enOnly: true }, bubble: ["Listen!", "よく きいてね"], replayOnWrong: true,
+          options: shuffle([it].concat(distractors(it, k))).map((x) => optPic(x)), answer: it.id, cols: lv === 3 ? 3 : lv === 2 ? 2 : 3,
+          after: { ja: lv === 1 ? it.ja : it.sja, en: lv === 1 ? it.label : it.sent }
+        };
+      });
+    },
+    read(lv, n) {
+      return Stats.pick(picPool(PIC_CATS), n).map((it) => {
+        const text = lv === 3 ? it.sent : it.label;
+        return {
+          wordId: it.id, title: "Read and choose.", sub: "よんで えを えらんでね",
+          speak: { ja: "よんで えらんでね", en: "Read and choose." }, bubble: ["Read!", "よんでみてね"],
+          visual: `<div class="word-card ${lv === 3 ? "sent" : ""}">${esc(text)}</div>`,
+          options: shuffle([it].concat(distractors(it, lv === 1 ? 2 : 3))).map((x) => optPic(x)), answer: it.id, cols: lv === 1 ? 3 : 2,
+          after: { ja: lv === 3 ? it.sja : it.ja, en: text }
+        };
+      });
+    },
+    first(lv, n) {
+      const pool = ALL.filter((x) => x.cat !== "time" && /^[a-z]+$/i.test(x.word));
+      const LOOK = { b: "dpq", d: "bpq", p: "qbd", q: "pdb", m: "nw", n: "mu", u: "nv", w: "mv", i: "lj", l: "it", c: "eo", e: "co", h: "nk", f: "tl", t: "fl", s: "zc", g: "qy", y: "vg", r: "nh", o: "ca", a: "oe", k: "hx", v: "uw", z: "sx", j: "ig", x: "kz" };
+      return Stats.pick(pool, n).map((it) => {
+        const L = it.word[0].toLowerCase();
+        let others = lv === 3 ? (LOOK[L] || "").split("") : [];
+        const rest = shuffle("abcdefghijklmnopqrstuvwxyz".split("").filter((c) => c !== L && !others.includes(c)));
+        others = others.concat(rest).slice(0, lv === 1 ? 2 : 3);
+        const fmt = (c) => (lv === 1 ? c.toUpperCase() : lv === 2 ? c : Math.random() < 0.5 ? c.toUpperCase() : c);
+        const letters = shuffle([L].concat(others));
+        return {
+          wordId: it.id, title: "What's the first letter?", sub: "さいしょの もじは どれ？",
+          speak: { en: it.label, enOnly: true }, bubble: ["Listen!", "さいしょの もじは どれ？"], replayOnWrong: true,
+          visual: `<div class="q-pic">${A.render(it.art)}</div>`,
+          options: letters.map((c) => ({ id: c, html: `<b class="opt-letter">${fmt(c)}</b>` })), answer: L, cols: letters.length === 3 ? 3 : 4, optClass: "letters",
+          after: { en: `${L.toUpperCase()}. ${it.label}.`, ja: it.ja }
+        };
+      });
+    },
+    spell(lv, n) {
+      const len = lv === 1 ? [3, 3] : lv === 2 ? [4, 5] : [5, 10];
+      let pool = ALL.filter((x) => /^[a-z]+$/.test(x.word) && x.word.length >= len[0] && x.word.length <= len[1] && x.cat !== "time");
+      if (pool.length < n) pool = ALL.filter((x) => /^[a-z]+$/.test(x.word) && x.word.length <= len[1]);
+      return Stats.pick(pool, n).map((it) => {
+        const letters = it.word.split("");
+        const extra = sample("abcdefghijklmnopqrstuvwxyz".split("").filter((c) => !letters.includes(c)), lv === 1 ? 2 : lv === 2 ? 3 : 4);
+        const tiles = shuffle(letters.concat(extra)).map((c, i) => ({ id: "t" + i + c, html: `<b class="opt-letter">${c}</b>`, ch: c }));
+        return {
+          type: "seq", wordId: it.id, title: "Spell the word.", sub: "じゅんばんに もじを タップ",
+          speak: { en: it.label, enOnly: true }, bubble: [lv === 1 ? it.label : "Spell it!", "もじを じゅんばんに タップしてね"],
+          visual: `<div class="q-pic small">${A.render(it.art)}</div>`, hint: lv === 1 ? "all" : lv === 2 ? "first" : "none",
+          options: tiles, answer: letters, cols: Math.min(tiles.length, 6), optClass: "letters tiles-sm",
+          after: { ja: it.ja, en: it.label }
+        };
+      });
+    },
+    shadow(lv, n) {
+      const cats = ["items", "shapes", "family", "animals", "fruits", "clothes", "weather"];
+      return Stats.pick(picPool(cats), n).map((it) => {
+        const pool = lv === 1 ? picPool(cats).filter((x) => x.cat !== it.cat) : catOf(it.cat).items;
+        const opts = shuffle([it].concat(distractors(it, lv === 1 ? 2 : 3, pool)));
+        const shadowArt = lv === 3 ? A.render(it.art) : it.art.startsWith("shape:") ? A.wrap(A.shape(it.art.split(":")[1], { fill: "#3B2A3F", stroke: "#3B2A3F" }), "0 0 200 200") : A.render(it.art);
+        const peek = lv === 3 ? `style="--px:${randInt(30, 70)}%;--py:${randInt(30, 70)}%"` : "";
+        return {
+          wordId: it.id, title: "What's this?", sub: "これは なに？",
+          speak: { ja: "これは なに？", en: "What's this?" }, bubble: ["What's this?", lv === 3 ? "すこしだけ みえるよ" : "かげを よく みてね"],
+          visual: `<div class="shadow ${lv === 3 ? "peek" : "sil"}" ${peek}>${shadowArt}</div>`, revealOnRight: true,
+          options: opts.map((x) => optPic(x, lv < 3)), answer: it.id, cols: opts.length === 3 ? 3 : 2,
+          after: { ja: it.ja, en: it.sent }
+        };
+      });
+    },
+    opposite(lv, n) {
+      const things = ALL.filter((x) => x.art.startsWith("emoji:") || ["bag", "robot", "doll", "book", "bike"].includes(x.word));
+      const qs = [];
+      for (let i = 0; i < n; i++) {
+        const kind = Math.random() < 0.6 ? "size" : "length";
+        const WORD = { big: "おおきい", little: "ちいさい", long: "ながい", short: "みじかい" };
+        if (lv === 1) {
+          const ans = kind === "size" ? pick(["big", "little"]) : pick(["long", "short"]);
+          const it = pick(things);
+          const visual = kind === "size"
+            ? `<div class="opp-pic size">${ans === "big" ? `<span class="o-big">${A.render(it.art)}</span>` : `<span class="o-small">${A.render(it.art)}</span>`}<span class="dim ${ans === "big" ? "o-small" : "o-big"}">${A.render(it.art)}</span></div>`
+            : `<div class="opp-pic len">${lenArt(ans === "long" ? randInt(6, 9) : randInt(1, 2), true)}${lenArt(ans === "long" ? randInt(1, 2) : randInt(6, 9), false)}</div>`;
+          const q = kind === "size" ? "Is it big or little?" : "Is it long or short?";
+          const choices = kind === "size" ? ["big", "little"] : ["long", "short"];
+          qs.push({ title: q, sub: kind === "size" ? "いろの ついた ほうは おおきい？ ちいさい？" : "いろの ついた ほうは ながい？ みじかい？", speak: { en: q, enOnly: true }, bubble: [q, ""],
+            visual, options: choices.map((c) => ({ id: c, html: `<b>${c}</b><small>${WORD[c]}</small>`, cls: "word" })), answer: ans, cols: 2, after: { ja: WORD[ans] + "よ。", en: `It's ${ans}.` } });
+        } else {
+          const count = lv === 2 ? 3 : 4;
+          const target = kind === "size" ? pick(["big", "little"]) : pick(["long", "short"]);
+          let sizes;
+          if (kind === "size") sizes = lv === 2 ? shuffle([0.45, 0.72, 1]) : shuffle([0.62, 0.74, 0.87, 1]);
+          else sizes = lv === 2 ? shuffle([2, 4, 8]) : shuffle([3, 4, 5, 6]).map((x, k) => x);
+          const best = target === "big" || target === "long" ? Math.max(...sizes) : Math.min(...sizes);
+          const it = pick(things);
+          const options = sizes.map((s, k) => ({ id: "o" + k + "_" + s, html: kind === "size" ? `<span class="szbox"><span style="transform:scale(${s})">${A.render(it.art)}</span></span>` : lenArt(s, true), cls: "opt-size" + (kind === "length" ? " opt-len" : "") }));
+          const ans = options[sizes.indexOf(best)].id;
+          const q = `Which one is ${target}?`;
+          qs.push({ title: q, sub: `${WORD[target]} のは どれ？`, speak: { en: q, enOnly: true }, bubble: [q, `${WORD[target]} のは どれ？`],
+            options, answer: ans, cols: count === 3 ? 3 : 2, after: { ja: WORD[target] + "ね。", en: `This one is ${target}.` } });
+        }
+      }
+      return qs;
+    }
+  };
+  // ながさの え（でんしゃ）：車両の数で 本当に ながさが かわる
+  function lenArt(cars, on) {
+    let svg = `<rect x="2" y="10" width="30" height="30" rx="5" fill="#3E7CC9" stroke="#3B2A3F" stroke-width="3"/><rect x="4" y="2" width="14" height="12" rx="3" fill="#3E7CC9" stroke="#3B2A3F" stroke-width="3"/><circle cx="10" cy="43" r="5" fill="#3B2A3F"/><circle cx="25" cy="43" r="5" fill="#3B2A3F"/>`;
+    for (let i = 0; i < cars; i++) {
+      const x = 36 + i * 24;
+      svg += `<rect x="${x}" y="14" width="21" height="26" rx="4" fill="#E2603F" stroke="#3B2A3F" stroke-width="3"/><circle cx="${x + 6}" cy="43" r="4" fill="#3B2A3F"/><circle cx="${x + 16}" cy="43" r="4" fill="#3B2A3F"/>`;
+    }
+    return `<span class="len-row ${on ? "" : "dim"}">${A.wrap(svg, "0 0 260 50")}</span>`;
+  }
+
+  // ---------- 問題を すすめる しくみ（えらぶ／じゅんばんに タップ） ----------
+  function runQuiz(game, lv, qs) {
+    Timer.start();
+    let n = 0, score = 0;
+    const draw = () => {
+      const q = qs[n]; let tries = 0;
+      view().innerHTML = `${topbar(game.ja, "game/" + game.id, STARS(lv))}
+        <section class="quiz">
+          <div class="q-head"><span class="q-num">${n + 1} / ${qs.length}</span><span class="stars">${"★".repeat(score)}${"☆".repeat(qs.length - score)}</span></div>
+          <button class="ask ${q.big ? "big" : ""}" id="ask"><span class="ask-emoji">🔈</span><span><b>${esc(q.title)}</b><small>${esc(q.sub || "")}</small></span></button>
+          ${q.visual ? `<div class="q-visual">${q.visual}</div>` : ""}
+          ${q.type === "seq" ? `<div class="spell-slots" id="slots">${q.answer.map((c, i) => `<span class="${q.hint === "all" || (q.hint === "first" && i === 0) ? "hint" : ""}" data-c="${c}">${q.hint === "all" || (q.hint === "first" && i === 0) ? c : ""}</span>`).join("")}</div>` : ""}
+          <div class="opts cols-${q.cols || 3} ${q.optClass || ""}">${q.options.map((o) => `<button class="opt ${o.cls || ""}" data-id="${esc(o.id)}">${o.html}</button>`).join("")}</div>
+        </section>`;
+      const play = () => Speech.say(q.speak.ja || null, q.speak.en, { el: $("#ask"), bubble: q.bubble, enOnly: q.speak.enOnly });
+      $("#ask").onclick = play; setTimeout(play, 250);
+      const done = async (el) => {
+        if (tries === 0) score++;
+        Stats.mark(q.wordId, tries === 0);
+        $$(".opt").forEach((x) => (x.disabled = true));
+        if (el) { el.classList.add("right"); bump(el, true); }
+        if (q.revealOnRight) { const s = $(".shadow"); if (s) s.classList.add("lit"); }
+        Cheer.play("correct", pick(Cheer.LINES.correct));
+        await Speech.say(q.after.ja, q.after.en, { el: el || $("#slots") });
+        await wait(450);
+        n++;
+        if (document.body.dataset.route !== "game") return;
+        if (n < qs.length) draw(); else finish();
+      };
+      if (q.type === "seq") {
+        let pos = 0;
+        const slots = $$("#slots span");
+        $$(".opt").forEach((b) => b.addEventListener("click", () => {
+          const t = q.options.find((o) => o.id === b.dataset.id);
+          if (t.ch === q.answer[pos]) {
+            slots[pos].textContent = t.ch; slots[pos].classList.add("filled"); slots[pos].classList.remove("hint");
+            b.disabled = true; b.classList.add("used");
+            Speech.en(t.ch, { noBubble: true });
+            pos++;
+            if (pos === q.answer.length) done(null);
+          } else { tries++; bump(b, false); Speech.en(t.ch, { noBubble: true }); }
+        }));
+      } else {
+        $$(".opt").forEach((b) => b.addEventListener("click", () => {
+          if (b.dataset.id === q.answer) done(b);
+          else {
+            tries++; Stats.mark(q.wordId, false); bump(b, false); b.disabled = true;
+            if (q.replayOnWrong) setTimeout(play, 700);
+          }
+        }));
+      }
+    };
+    const finish = () => finishLevel(game, lv, score, qs.length);
+    draw();
+  }
+
+  function finishLevel(game, lv, score, total) {
+    const good = score / total >= 0.8;
+    if (good && lv < 3) Levels.up(game.id, lv + 1);
+    view().innerHTML = `${topbar("けっか", "game/" + game.id, game.ja + " " + STARS(lv))}
+      <section class="result"><p class="big-stars">${"★".repeat(score)}<span>${"★".repeat(Math.max(0, total - score))}</span></p>
+      <h2>${score} / ${total}</h2>
+      <p>${score === total ? "ぜんもん せいかい！" : good ? "よく できたね！" : "もういちど やってみよう！"}${good && lv < 3 ? `<br><b class="next-lv">つぎは ${STARS(lv + 1)} に チャレンジ！</b>` : ""}</p>
+      <div class="result-btns">
+        <a class="btn" href="#/game/${game.id}/${lv}" data-again>もういちど（ちがう もんだい）</a>
+        ${lv < 3 ? `<a class="btn primary" href="#/game/${game.id}/${lv + 1}">${STARS(lv + 1)} に すすむ</a>` : ""}
+        <a class="btn" href="#/game">ゲームを えらぶ</a>
+      </div></section>`;
+    const again = $("[data-again]");
+    if (again) again.addEventListener("click", (e) => { e.preventDefault(); routes.game(game.id, String(lv)); });
+    finishGame(`${game.ja} ${STARS(lv)}`, score, total, `${total}もん中 ${score}もん せいかい！`);
+  }
+
+  routes.game = (id, lvArg) => {
     if (!id) {
       view().innerHTML = `${topbar("ゲームで あそぼう", "kids", "Games")}
-        <section class="menu-grid">${GAMES.map((g) => `<a class="menu-card" href="#/game/${g.id}"><span class="mc-art">${A.render(g.icon)}</span><b>${g.ja}</b><small>${g.en}</small></a>`).join("")}</section>`;
+        <section class="menu-grid">${GAMES.map((g) => `<a class="menu-card ${g.special ? "special" : ""}" href="#/game/${g.id}"><span class="mc-art">${A.render(g.icon)}</span><b>${g.ja}</b><small>${g.en}</small><span class="lv-badge">${STARS(Levels.get(g.id))}</span></a>`).join("")}</section>`;
       Cheer.say("Let's play a game!", "どの ゲームに する？");
       return;
     }
-    const fn = { hunt: gameHunt, dots: gameDots, match: gameMatch, listen: gameListen, opposite: gameOpposite, shadow: gameShadow }[id];
-    if (fn) fn(arg); else go("game");
+    const game = gameById(id);
+    if (!game) return go("game");
+    const lv = +lvArg;
+    if (!lv || lv < 1 || lv > 3) return levelSelect(game);
+    if (id === "hunt") return gameHunt(game, lv);
+    if (id === "dots") return gameDots(game, lv);
+    if (id === "match") return gameMatch(game, lv);
+    if (id === "mix") {
+      const kinds = ["listen", "read", "first", "shadow", "opposite", "spell"];
+      const total = lv === 3 ? 12 : 10;
+      const qs = [];
+      for (let i = 0; i < total; i++) { const k = kinds[i % kinds.length]; qs.push(MAKE[k](k === "spell" ? Math.max(1, lv - 1) : lv, 1)[0]); }
+      return runQuiz(game, lv, shuffle(qs));
+    }
+    runQuiz(game, lv, MAKE[id](lv, id === "listen" || id === "read" ? 10 : 8));
   };
 
-  function chooser(title, back, sub, items, hrefFn) {
-    view().innerHTML = `${topbar(title, back, sub)}
-      <section class="chooser">${items.map((it) => `<a class="choose" href="${hrefFn(it)}"><span class="ch-emoji">${it.emoji}</span><b>${it.label}</b><small>${it.small || ""}</small></a>`).join("")}</section>`;
-    Cheer.say("Which one?", "どれに する？");
+  function levelSelect(game) {
+    const rec = Levels.get(game.id);
+    view().innerHTML = `${topbar(game.ja, "game", game.en)}
+      <section class="levels">
+        <div class="lv-head"><span class="mc-art">${A.render(game.icon)}</span><p>レベルを えらんでね<br><small>まいかい ちがう もんだいが でるよ</small></p></div>
+        ${[1, 2, 3].map((l) => `<a class="lv-card lv${l} ${l === rec ? "rec" : ""}" href="#/game/${game.id}/${l}"><b>${STARS(l)}</b><span>${esc(game.lv[l - 1])}</span>${l === rec ? `<em>おすすめ</em>` : ""}</a>`).join("")}
+      </section>`;
+    Cheer.say("Choose a level!", "どの レベルに する？");
   }
 
   function finishGame(name, correct, total, extraMsg) {
@@ -338,309 +611,171 @@
     if (!ok) Cheer.play("wrong", pick(Cheer.LINES.wrong));
   }
 
-  // A. もじ さがし（Circle all the ... with a big X or a little x）
-  function gameHunt(letter) {
-    if (!letter) return chooser("もじ さがし", "game", "Find the letters", D.letterHunt.map((h) => ({ emoji: h.emoji, label: h.letter + " " + h.letter.toLowerCase(), small: h.word })), (it) => "#/game/hunt/" + it.label[0]);
-    const h = D.letterHunt.find((x) => x.letter === letter);
-    if (!h) return go("game/hunt");
+  // A. もじ さがし：★ 1しゅるい ★★ にている もじ入り×3かい ★★★ えの さいしょの もじ×3かい
+  function gameHunt(game, lv) {
     Timer.start();
-    const L = h.letter, l = L.toLowerCase();
-    const near = { O: "QCDGo", P: "RBqbd", R: "PBKn", U: "VWnu", W: "VMNm", X: "KYZx", Y: "VXTv" }[L] || "ABC";
-    const others = (near + "ABDEFGHKMNST").split("").filter((c) => c.toUpperCase() !== L);
-    const targets = shuffle([L, L, L, l, l, l, L, l].slice(0, 6 + Math.floor(Math.random() * 3)));
-    const tiles = shuffle(targets.concat(shuffle(others).slice(0, 16 - targets.length).map((c) => (Math.random() < 0.5 ? c.toLowerCase() : c))));
-    let found = 0;
-    view().innerHTML = `${topbar("もじ さがし", "game/hunt", h.word)}
-      <section class="hunt">
-        <button class="ask" id="ask"><span class="ask-emoji">${h.emoji}</span><span><b>「${L}」と「${l}」を ぜんぶ みつけよう</b><small>Find the big ${L} and the little ${l}.</small></span></button>
-        <div class="tiles">${tiles.map((c, n) => `<button class="tile" data-c="${c}" style="--r:${(n * 37) % 11 - 5}deg"><span class="t-emoji">${h.emoji}</span><b>${c}</b></button>`).join("")}</div>
-        <p class="progress"><span id="found">0</span> / ${targets.length}</p>
-      </section>`;
-    const intro = () => Speech.say(`おおきい ${L} と ちいさい ${l} を さがそう`, `Find the big ${L} and the little ${l}.`, { el: $("#ask") });
-    $("#ask").onclick = intro; intro();
-    $$(".tile").forEach((t) => t.addEventListener("click", async () => {
-      if (t.classList.contains("got")) return;
-      if (t.dataset.c.toUpperCase() === L) {
-        t.classList.add("got"); found++; $("#found").textContent = found;
-        bump(t, true);
-        Cheer.play("correct", pick(Cheer.LINES.correct));
-        Speech.en(t.dataset.c === L ? `big ${L}` : `little ${l}`);
-        if (found === targets.length) {
-          await wait(900);
-          await Speech.say(h.ja, `${L}. ${h.word}!`);
-          finishGame(`もじさがし ${L}${l}`, found, targets.length, `${L} と ${l}、ぜんぶ みつけたね！`);
-        }
-      } else {
-        bump(t, false);
-        Speech.en(t.dataset.c);
-      }
-    }));
+    const rounds = lv === 1 ? 1 : 3;
+    const LOOK = { B: "DPR", D: "BOP", P: "RBQ", Q: "OGP", M: "NW", N: "MH", U: "VW", W: "MV", E: "FB", F: "EP", C: "GO", G: "CQ", O: "QDC", I: "LJ", L: "IJ", V: "UY", Y: "VX", K: "XR", R: "PB", S: "Z", Z: "S", H: "NK", T: "FI", A: "R", J: "IL", X: "KY" };
+    const words = lv === 3 ? Stats.pick(ALL.filter((x) => /^[a-z]+$/i.test(x.word) && x.cat !== "time"), rounds) : [];
+    const letters = lv === 3 ? words.map((w) => w.word[0].toUpperCase()) : sample("ABCDEFGHIJKLMNOPRSTUVWY".split(""), rounds);
+    let round = 0, found = 0, totalTargets = 0, misses = 0;
+    const draw = () => {
+      const L = letters[round], l = L.toLowerCase(), w = words[round];
+      const size = lv === 1 ? 16 : 20;
+      const nT = randInt(lv === 1 ? 4 : 5, lv === 1 ? 6 : 7);
+      const targets = Array.from({ length: nT }, (_, i) => (i % 2 ? l : L));
+      const near = (LOOK[L] || "").split("");
+      let others = [];
+      if (lv >= 2) near.forEach((c) => others.push(c, c.toLowerCase()));
+      others = others.concat(sample("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((c) => c !== L), size));
+      const tiles = shuffle(targets.concat(others.slice(0, size - nT).map((c) => (Math.random() < 0.5 ? c.toLowerCase() : c))));
+      const emoji = w ? A.render(w.art) : "";
+      let got = 0;
+      view().innerHTML = `${topbar(game.ja, "game/" + game.id, STARS(lv) + (rounds > 1 ? `　${round + 1} / ${rounds}` : ""))}
+        <section class="hunt">
+          <button class="ask" id="ask"><span class="ask-emoji">${w ? `<span class="ask-pic">${emoji}</span>` : "🔍"}</span><span><b>${w ? `「${esc(w.label)}」の さいしょの もじを ぜんぶ さがそう` : `「${L}」と「${l}」を ぜんぶ みつけよう`}</b><small>${w ? `Find the first letter of "${esc(w.label)}".` : `Find the big ${L} and the little ${l}.`}</small></span></button>
+          <div class="tiles ${lv > 1 ? "t20" : ""}">${tiles.map((c, k) => `<button class="tile" data-c="${c}" style="--r:${randInt(-7, 7)}deg"><b>${c}</b></button>`).join("")}</div>
+          <p class="progress"><span id="found">0</span> / ${nT}</p>
+        </section>`;
+      const intro = () => w
+        ? Speech.say(`${w.ja}。さいしょの もじを さがそう`, w.label, { el: $("#ask"), bubble: [w.label, "さいしょの もじは？"] })
+        : Speech.say(`おおきい ${L} と ちいさい ${l} を さがそう`, `Find ${L}.`, { el: $("#ask") });
+      $("#ask").onclick = intro; intro();
+      $$(".tile").forEach((t) => t.addEventListener("click", async () => {
+        if (t.classList.contains("got")) return;
+        if (t.dataset.c.toUpperCase() === L) {
+          t.classList.add("got"); got++; found++; $("#found").textContent = got;
+          bump(t, true); Cheer.play("correct", pick(Cheer.LINES.correct));
+          Speech.en(t.dataset.c === L ? `big ${L}` : `little ${l}`, { noBubble: true });
+          if (got === nT) {
+            totalTargets += nT;
+            if (w) Stats.mark(w.id, true);
+            await wait(800);
+            round++;
+            if (round < rounds) draw();
+            else finishLevel(game, lv, Math.max(0, totalTargets - misses), totalTargets);
+          }
+        } else { misses++; if (w) Stats.mark(w.id, false); bump(t, false); Speech.en(t.dataset.c, { noBubble: true }); }
+      }));
+    };
+    draw();
   }
 
-  // B. てん つなぎ（Connect the big X's to the little x's）
-  function gameDots(letter) {
-    if (!letter) return chooser("てん つなぎ", "game", "Connect the dots", D.dotConnect.map((h) => ({ emoji: h.emoji, label: h.letter + " " + h.letter.toLowerCase(), small: h.word })), (it) => "#/game/dots/" + it.label[0]);
-    const h = D.dotConnect.find((x) => x.letter === letter);
-    if (!h) return go("game/dots");
+  // B. ABC てん つなぎ：ばしょは まいかい ランダム
+  function gameDots(game, lv) {
     Timer.start();
-    const L = h.letter, l = L.toLowerCase();
-    const line = L === "T";
-    const zig = L === "Z" || L === "V";
-    const N = line || zig ? 8 : 12;
+    const AB = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let seq;
+    if (lv === 1) { const s = randInt(0, 20); seq = AB.slice(s, s + 6).split(""); }
+    else if (lv === 2) { const s = randInt(0, 16); seq = AB.slice(s, s + 10).toLowerCase().split(""); }
+    else { const s = randInt(0, 20); seq = AB.slice(s, s + 6).split("").flatMap((c) => [c, c.toLowerCase()]); }
+    const N = seq.length;
     const pts = [];
-    for (let k = 0; k < N; k++) {
-      if (line) pts.push([30 + k * (300 / (N - 1)), 250]);
-      else if (zig) pts.push([30 + k * (300 / (N - 1)), k % 2 ? 230 : 110]);
-      else { const a = (k / N) * Math.PI * 2 - Math.PI / 2; pts.push([180 + Math.cos(a) * 118, 180 + Math.sin(a) * 118]); }
+    let guard = 0;
+    while (pts.length < N && guard++ < 4000) {
+      const p = [32 + Math.random() * 296, 32 + Math.random() * 296];
+      if (pts.every((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 58) && (pts.length === 0 || Math.hypot(pts[pts.length - 1][0] - p[0], pts[pts.length - 1][1] - p[1]) < 170)) pts.push(p);
     }
+    while (pts.length < N) pts.push([32 + Math.random() * 296, 32 + Math.random() * 296]);
     const decoys = [];
-    const pool = "ABDEFGHKMNOPRUWXY".split("").filter((c) => c !== L);
-    for (let k = 0, tries = 0; k < 7 && tries < 400; tries++) {
-      const p = [26 + Math.random() * 308, 26 + Math.random() * 308];
-      const far = (q, dmin) => Math.hypot(q[0] - p[0], q[1] - p[1]) > dmin;
-      if (!pts.every((q) => far(q, 62)) || !decoys.every((q) => far(q, 56))) continue;
-      if (!line && !zig && Math.hypot(p[0] - 180, p[1] - 180) < 168) continue;
-      if ((line || zig) && p[1] > 150 && p[1] < 200 && Math.abs(p[0] - 180) < 70) continue;
-      decoys.push(p.concat(pick(pool)[Math.random() < 0.5 ? "toLowerCase" : "toUpperCase"]()));
-      k++;
+    if (lv >= 2) {
+      const pool = AB.split("").filter((c) => !seq.map((x) => x.toUpperCase()).includes(c));
+      for (let k = 0, g = 0; k < 4 && g < 800; g++) {
+        const p = [30 + Math.random() * 300, 30 + Math.random() * 300];
+        if (pts.every((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 54) && decoys.every((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 54)) { decoys.push(p.concat(lv === 2 ? pick(pool).toLowerCase() : pick(pool))); k++; }
+      }
     }
-    let next = 0;
-    const lab = (k) => (k % 2 ? l : L);
-    view().innerHTML = `${topbar("てん つなぎ", "game/dots", h.word)}
+    const prize = pick(picPool(["animals", "fruits"]));
+    let next = 0, misses = 0;
+    view().innerHTML = `${topbar(game.ja, "game/" + game.id, STARS(lv))}
       <section class="dots">
-        <button class="ask" id="ask"><span class="ask-emoji">${h.emoji}</span><span><b>${L} → ${l} → ${L} の じゅんに つなごう</b><small>Connect the big ${L}'s to the little ${l}'s.</small></span></button>
-        <div class="dot-board">
-          <svg viewBox="0 0 360 360" id="dsvg">
-            <g id="lines"></g>
-            <g class="reveal" id="reveal"><text x="180" y="${line ? 170 : zig ? 340 : 205}" text-anchor="middle" font-size="${line || zig ? 80 : 110}">${h.emoji}</text></g>
-            ${line ? `<text x="10" y="215" font-size="40">🐢</text><text x="10" y="120" font-size="36">🐰</text><text x="320" y="215" font-size="34">🏁</text>` : ""}
-            ${decoys.map((d, k) => `<g class="dd decoy" data-k="${k}" transform="translate(${d[0]} ${d[1]})"><circle r="21"/><text y="8">${d[2]}</text></g>`).join("")}
-            ${pts.map((p, k) => `<g class="dd target" data-k="${k}" transform="translate(${p[0]} ${p[1]})"><circle r="21"/><text y="8">${lab(k)}</text></g>`).join("")}
-          </svg>
-        </div>
+        <button class="ask" id="ask"><span class="ask-emoji">🔗</span><span><b>${seq[0]} から じゅんばんに つなごう</b><small>Connect ${seq[0]} to ${seq[N - 1]}.</small></span></button>
+        <div class="dot-board"><svg viewBox="0 0 360 360" id="dsvg">
+          <g id="lines"></g>
+          <g class="reveal" id="reveal"><foreignObject x="110" y="110" width="140" height="140"><div xmlns="http://www.w3.org/1999/xhtml" class="prize">${A.render(prize.art)}</div></foreignObject></g>
+          ${decoys.map((d) => `<g class="dd decoy" transform="translate(${d[0]} ${d[1]})"><circle r="22"/><text y="9">${d[2]}</text></g>`).join("")}
+          ${pts.map((p, k) => `<g class="dd target" data-k="${k}" transform="translate(${p[0]} ${p[1]})"><circle r="22"/><text y="9">${seq[k]}</text></g>`).join("")}
+        </svg></div>
         <p class="progress"><span id="cnt">0</span> / ${N}</p>
       </section>`;
-    const intro = () => Speech.say(`おおきい ${L} と ちいさい ${l} を じゅんばんに つなごう`, `Connect the big ${L}'s to the little ${l}'s.`, { el: $("#ask") });
+    const intro = () => Speech.say(`${seq[0]} から じゅんばんに つなごう`, `Connect ${seq[0]} to ${seq[N - 1]}.`, { el: $("#ask") });
     $("#ask").onclick = intro; intro();
-    const mark = () => $$(".target").forEach((g) => g.classList.toggle("next", +g.dataset.k === next));
+    const mark = () => $$(".target").forEach((g) => g.classList.toggle("next", lv === 1 && +g.dataset.k === next));
     mark();
     $$(".dd", $("#dsvg")).forEach((g) => g.addEventListener("click", async () => {
       if (g.classList.contains("target") && +g.dataset.k === next) {
         g.classList.add("done");
-        if (next > 0) {
-          const a = pts[next - 1], b = pts[next];
-          $("#lines").insertAdjacentHTML("beforeend", `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`);
-        }
-        Speech.en(next % 2 ? `little ${l}` : `big ${L}`);
+        if (next > 0) { const a = pts[next - 1], b = pts[next]; $("#lines").insertAdjacentHTML("beforeend", `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`); }
+        Speech.en(seq[next], { noBubble: true });
         next++; $("#cnt").textContent = next; mark();
-        if (next % 3 === 0) Cheer.play("correct", pick(Cheer.LINES.correct));
+        if (next % 4 === 0) Cheer.play("correct", pick(Cheer.LINES.correct));
         if (next === N) {
-          if (!line && !zig) { const a = pts[N - 1], b = pts[0]; $("#lines").insertAdjacentHTML("beforeend", `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`); }
           $("#reveal").classList.add("show");
-          await wait(700);
-          await Speech.say(h.ja, h.word);
-          finishGame(`てんつなぎ ${L}${l}`, N, N, line ? "カメさんの かち！ よく できたね！" : "できあがり！ すごいね！");
+          await wait(600);
+          await Speech.say(prize.ja, prize.sent);
+          finishLevel(game, lv, Math.max(0, N - misses), N);
         }
-      } else {
-        bump(g, false);
-        if (g.classList.contains("decoy")) Speech.en($("text", g).textContent);
-      }
+      } else if (!g.classList.contains("done")) { misses++; bump(g, false); Speech.en($("text", g).textContent, { noBubble: true }); }
     }));
   }
 
-  // C. 大文字と小文字をつなごう
-  function gameMatch(setId) {
-    if (!setId) return chooser("おおもじ・こもじ", "game", "Big & little letters", D.letterSets.map((s) => ({ emoji: s.letters[0] + s.letters[0].toLowerCase(), label: s.label, small: s.letters.split("").join(" "), id: s.id })), (it) => "#/game/match/" + it.id);
-    const set = D.letterSets.find((s) => s.id === setId);
-    if (!set) return go("game/match");
+  // C. なかま あわせ：★ おおもじ↔こもじ ★★ にている こもじ入り ★★★ ことば↔え
+  function gameMatch(game, lv) {
     Timer.start();
-    const big = set.letters.split("");
-    const small = shuffle(big.map((c) => c.toLowerCase()));
+    let left, right;
+    if (lv < 3) {
+      const base = lv === 1 ? sample("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""), 5) : shuffle(sample("BDPQMNUW".split(""), 4).concat(sample("ACEFGHIJKLORSTVXYZ".split(""), 3)));
+      left = base.map((c) => ({ key: c, html: c, say: c }));
+      right = shuffle(base).map((c) => ({ key: c, html: c.toLowerCase(), say: c.toLowerCase() }));
+    } else {
+      const its = Stats.pick(picPool(["animals", "fruits", "items", "clothes", "colors", "weather"]), 6);
+      left = its.map((it) => ({ key: it.id, html: esc(it.label), say: it.label, word: true }));
+      right = shuffle(its).map((it) => ({ key: it.id, html: A.render(it.art), pic: true }));
+    }
     let sel = null, done = 0, miss = 0;
-    view().innerHTML = `${topbar("おおもじ・こもじ", "game/match", set.label)}
+    view().innerHTML = `${topbar(game.ja, "game/" + game.id, STARS(lv))}
       <section class="match">
-        <button class="ask" id="ask"><span class="ask-emoji">🔤</span><span><b>おなじ もじを つなごう</b><small>Connect the big letters to the little letters.</small></span></button>
-        <div class="match-board" id="mb">
+        <button class="ask" id="ask"><span class="ask-emoji">🧩</span><span><b>${lv < 3 ? "おなじ もじを つなごう" : "ことばと えを つなごう"}</b><small>${lv < 3 ? "Match the big and little letters." : "Match the words and pictures."}</small></span></button>
+        <div class="match-board ${lv === 3 ? "words" : ""}" id="mb">
           <svg class="match-lines" id="ml"></svg>
-          <div class="col left">${big.map((c) => `<button class="lt" data-c="${c}">${c}</button>`).join("")}</div>
-          <div class="col right">${small.map((c) => `<button class="lt" data-c="${c}">${c}</button>`).join("")}</div>
+          <div class="col left">${left.map((x) => `<button class="lt ${x.word ? "lt-word" : ""}" data-k="${esc(x.key)}">${x.html}</button>`).join("")}</div>
+          <div class="col right">${right.map((x) => `<button class="lt ${x.pic ? "lt-pic" : ""}" data-k="${esc(x.key)}">${x.html}</button>`).join("")}</div>
         </div>
       </section>`;
-    const intro = () => Speech.say("おおきい もじと ちいさい もじを つなごう", "Connect the big letters to the little letters.", { el: $("#ask") });
+    const intro = () => Speech.say(lv < 3 ? "おおきい もじと ちいさい もじを つなごう" : "ことばと えを つなごう", lv < 3 ? "Match the letters." : "Match the words and pictures.", { el: $("#ask") });
     $("#ask").onclick = intro; intro();
     const pairs = [];
-    const COLORS = ["#C2357A", "#3E7CC9", "#4FA35B", "#F2994A", "#B48AD6"];
+    const COLORS = ["#C2357A", "#3E7CC9", "#4FA35B", "#F2994A", "#B48AD6", "#2BB3A3", "#E0B000"];
     const redraw = () => {
       const mb = $("#mb"); if (!mb) return;
-      const box = mb.getBoundingClientRect();
-      const svg = $("#ml");
+      const box = mb.getBoundingClientRect(), svg = $("#ml");
       svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
-      svg.innerHTML = pairs.map(([a, b], k) => {
-        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-        return `<line x1="${ra.right - box.left}" y1="${ra.top + ra.height / 2 - box.top}" x2="${rb.left - box.left}" y2="${rb.top + rb.height / 2 - box.top}" stroke="${COLORS[k % COLORS.length]}"/>`;
-      }).join("");
+      svg.innerHTML = pairs.map(([a, b], k) => { const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return `<line x1="${ra.right - box.left}" y1="${ra.top + ra.height / 2 - box.top}" x2="${rb.left - box.left}" y2="${rb.top + rb.height / 2 - box.top}" stroke="${COLORS[k % COLORS.length]}"/>`; }).join("");
     };
-    const drawLine = (a, b) => { pairs.push([a, b]); redraw(); };
-    // 画面を回転したら線を引き直す
     const onResize = () => { if (!document.body.contains($("#mb"))) return window.removeEventListener("resize", onResize); redraw(); };
     window.addEventListener("resize", onResize);
     $$(".left .lt").forEach((b) => b.addEventListener("click", () => {
       if (b.classList.contains("done")) return;
       $$(".left .lt").forEach((x) => x.classList.remove("sel"));
-      b.classList.add("sel"); sel = b; Speech.en(b.dataset.c);
+      b.classList.add("sel"); sel = b;
+      Speech.en(left.find((x) => x.key === b.dataset.k).say, { noBubble: true });
     }));
     $$(".right .lt").forEach((b) => b.addEventListener("click", async () => {
       if (b.classList.contains("done")) return;
-      if (!sel) { bump(b, false); Cheer.say("さきに ひだりの おおもじを えらんでね"); return; }
-      if (sel.dataset.c.toLowerCase() === b.dataset.c) {
+      if (!sel) { bump(b, false); Cheer.say("Choose on the left!", "さきに ひだりから えらんでね"); return; }
+      if (sel.dataset.k === b.dataset.k) {
         sel.classList.remove("sel"); sel.classList.add("done"); b.classList.add("done");
-        drawLine(sel, b); done++;
+        pairs.push([sel, b]); redraw(); done++;
+        if (lv === 3) Stats.mark(b.dataset.k, true);
         Cheer.play("correct", pick(Cheer.LINES.correct));
-        Speech.en(`${sel.dataset.c}. ${b.dataset.c}.`);
+        const r = right.find((x) => x.key === b.dataset.k), l = left.find((x) => x.key === b.dataset.k);
+        Speech.en(lv < 3 ? `${l.say}. ${r.say}.` : l.say, { noBubble: true });
         sel = null;
-        if (done === big.length) { await wait(900); finishGame(`おおもじ・こもじ ${set.label}`, big.length, big.length + miss); }
-      } else { miss++; bump(b, false); }
+        if (done === left.length) { await wait(900); finishLevel(game, lv, Math.max(0, left.length - miss), left.length); }
+      } else { miss++; if (lv === 3) Stats.mark(sel.dataset.k, false); bump(b, false); }
     }));
   }
 
-  // D. きいて えらぼう（Story Phrases / Review / Quiz Time）
-  function quizPool() {
-    const sec = (id) => D.sections.find((s) => s.id === id).cards;
-    const qs = [];
-    sec("phrases").slice(0, 7).forEach((c) => qs.push({ cat: "phrases", c, opts: sec("phrases").slice(0, 7) }));
-    sec("shapes").forEach((c) => qs.push({ cat: "shapes", c, opts: sec("shapes") }));
-    sec("time").forEach((c) => qs.push({ cat: "time", c, opts: sec("time"), q: { en: "What time is it?", ans: "It's " + c.en + "." } }));
-    sec("family").forEach((c) => qs.push({ cat: "family", c, opts: sec("family"), q: { en: "Who's this?", ans: c.id === "sam" ? "My friend Sam." : "My " + c.en + "." } }));
-    return qs;
-  }
-  function gameListen() {
-    Timer.start();
-    const qs = shuffle(quizPool()).slice(0, 8);
-    let n = 0, score = 0, tries = 0;
-    const draw = () => {
-      const q = qs[n];
-      const opts = shuffle([q.c].concat(shuffle(q.opts.filter((o) => o.id !== q.c.id)).slice(0, 2)));
-      tries = 0;
-      view().innerHTML = `${topbar("きいて えらぼう", "game", "Listen and choose")}
-        <section class="quiz">
-          <div class="q-head"><span class="q-num">${n + 1} / ${qs.length}</span><span class="stars">${"★".repeat(score)}${"☆".repeat(qs.length - score)}</span></div>
-          <button class="ask big" id="ask"><span class="ask-emoji">🔈</span><span><b>よく きいて えらんでね</b><small>Listen and choose.</small></span></button>
-          <div class="opts">${opts.map((o) => `<button class="opt" data-id="${o.id}">${A.render(o.art)}</button>`).join("")}</div>
-        </section>`;
-      const play = () => Speech.en(q.c.en, { el: $("#ask"), bubble: ["Listen!", "よく きいて えらんでね"] });
-      $("#ask").onclick = play;
-      setTimeout(play, 300);
-      $$(".opt").forEach((b) => b.addEventListener("click", async () => {
-        if (b.dataset.id === q.c.id) {
-          if (tries === 0) score++;
-          b.classList.add("right"); bump(b, true);
-          $$(".opt").forEach((x) => (x.disabled = true));
-          Cheer.play("correct", pick(Cheer.LINES.correct));
-          await Speech.say(q.c.ja, q.c.en, { el: b });
-          await wait(500);
-          n++;
-          if (n < qs.length) draw();
-          else {
-            view().innerHTML = resultHtml(score, qs.length, "listen");
-            finishGame("きいてえらぼう", score, qs.length, `${qs.length}もん中 ${score}もん せいかい！`);
-          }
-        } else { tries++; bump(b, false); b.disabled = true; setTimeout(play, 700); }
-      }));
-    };
-    draw();
-  }
-
-  // E. どっちかな？（Opposites：Is it big or little? / long or short?）
-  function gameOpposite() {
-    Timer.start();
-    const items = [
-      { item: "bag", pair: "size" }, { item: "robot", pair: "size" }, { item: "doll", pair: "size" }, { item: "book", pair: "size" },
-      { item: "train", pair: "length" }, { item: "jumprope", pair: "length" }, { item: "train", pair: "length" }, { item: "bag", pair: "size" }
-    ];
-    const qs = shuffle(items).map((it) => Object.assign({}, it, { ans: it.pair === "size" ? pick(["big", "little"]) : pick(["long", "short"]) }));
-    let n = 0, score = 0, tries = 0;
-    const WORD = { big: "おおきい", little: "ちいさい", long: "ながい", short: "みじかい" };
-    const pic = (q) => {
-      const svgItem = (k, extra) => A.render("item:" + k).replace('class="art "', `class="art ${extra}"`);
-      if (q.pair === "size") {
-        const isBig = q.ans === "big";
-        return `<div class="opp-pic size"><span class="o-big ${isBig ? "hl" : "dim"}">${svgItem(q.item, "")}</span><span class="o-small ${isBig ? "dim" : "hl"}">${svgItem(q.item, "")}</span></div>`;
-      }
-      const long = q.ans === "long";
-      if (q.item === "train") return `<div class="opp-pic len">${A.wrap(`<g transform="translate(0 0) scale(1 .6)" opacity="${long ? 1 : 0.22}">${A.trainInner(8)}</g><g transform="translate(0 92) scale(.32 .55)" opacity="${long ? 0.22 : 1}">${A.trainInner(1)}</g>`, "0 0 200 160")}</div>`;
-      return `<div class="opp-pic len rope">${A.wrap(`<path d="M20 40 C60 ${long ? 150 : 70} 140 ${long ? 150 : 70} 180 40" fill="none" stroke="#F2994A" stroke-width="7"/><rect x="10" y="20" width="18" height="34" rx="8" fill="#E2603F"/><rect x="172" y="20" width="18" height="34" rx="8" fill="#3E7CC9"/>`, "0 0 200 160")}</div>`;
-    };
-    const draw = () => {
-      const q = qs[n]; tries = 0;
-      const choices = q.pair === "size" ? ["big", "little"] : ["long", "short"];
-      const question = q.pair === "size" ? "Is it big or little?" : "Is it long or short?";
-      view().innerHTML = `${topbar("どっちかな？", "game", "Opposites")}
-        <section class="quiz">
-          <div class="q-head"><span class="q-num">${n + 1} / ${qs.length}</span><span class="stars">${"★".repeat(score)}${"☆".repeat(qs.length - score)}</span></div>
-          <button class="ask" id="ask"><span class="ask-emoji">🔈</span><span><b>${question}</b><small>${q.pair === "size" ? "おおきい？ ちいさい？" : "ながい？ みじかい？"}</small></span></button>
-          ${pic(q)}
-          <div class="opts two">${choices.map((c) => `<button class="opt word" data-id="${c}"><b>${c}</b><small>${WORD[c]}</small></button>`).join("")}</div>
-        </section>`;
-      const play = () => Speech.en(question, { el: $("#ask") });
-      $("#ask").onclick = play; setTimeout(play, 300);
-      $$(".opt").forEach((b) => b.addEventListener("click", async () => {
-        if (b.dataset.id === q.ans) {
-          if (!tries) score++;
-          b.classList.add("right"); bump(b, true); $$(".opt").forEach((x) => (x.disabled = true));
-          Cheer.play("correct", pick(Cheer.LINES.correct));
-          await Speech.say(WORD[q.ans] + "よ。", `It's ${q.ans}.`, { el: b });
-          await wait(400); n++;
-          if (n < qs.length) draw();
-          else { view().innerHTML = resultHtml(score, qs.length, "opposite"); finishGame("どっちかな（はんたいことば）", score, qs.length, `${qs.length}もん中 ${score}もん せいかい！`); }
-        } else { tries++; bump(b, false); b.disabled = true; Speech.en(b.dataset.id); }
-      }));
-    };
-    draw();
-  }
-
-  // F. かげ あて（Shapes / Family and Friends のシルエット）
-  function gameShadow() {
-    Timer.start();
-    const sec = (id) => D.sections.find((s) => s.id === id).cards;
-    const pool = sec("shapes").map((c) => ({ c, opts: sec("shapes"), q: "What shape is this?", qja: "これは なんの かたち？", ans: `It's ${c.en}.` }))
-      .concat(sec("family").map((c) => ({ c, opts: sec("family"), q: "Who's this?", qja: "これは だれ？", ans: c.id === "sam" ? "My friend Sam." : `My ${c.en}.` })));
-    const qs = shuffle(pool).slice(0, 8);
-    let n = 0, score = 0, tries = 0;
-    const draw = () => {
-      const q = qs[n]; tries = 0;
-      const opts = shuffle([q.c].concat(shuffle(q.opts.filter((o) => o.id !== q.c.id)).slice(0, 2)));
-      const isShape = q.c.art.startsWith("shape:");
-      const shadow = isShape ? A.wrap(A.shape(q.c.art.split(":")[1], { fill: "#3B2A3F", stroke: "#3B2A3F" }), "0 0 200 200") : A.render(q.c.art);
-      view().innerHTML = `${topbar("かげ あて", "game", "Who's this?")}
-        <section class="quiz">
-          <div class="q-head"><span class="q-num">${n + 1} / ${qs.length}</span><span class="stars">${"★".repeat(score)}${"☆".repeat(qs.length - score)}</span></div>
-          <button class="ask" id="ask"><span class="ask-emoji">🔈</span><span><b>${q.q}</b><small>${q.qja}</small></span></button>
-          <div class="shadow ${isShape ? "" : "sil"}" id="sh">${shadow}</div>
-          <div class="opts">${opts.map((o) => `<button class="opt" data-id="${o.id}">${A.render(o.art)}<small>${esc(o.en)}</small></button>`).join("")}</div>
-        </section>`;
-      const play = () => Speech.say(q.qja, q.q, { el: $("#ask") });
-      $("#ask").onclick = play; setTimeout(play, 300);
-      $$(".opt").forEach((b) => b.addEventListener("click", async () => {
-        if (b.dataset.id === q.c.id) {
-          if (!tries) score++;
-          $("#sh").classList.add("lit");
-          b.classList.add("right"); bump(b, true); $$(".opt").forEach((x) => (x.disabled = true));
-          Cheer.play("correct", pick(Cheer.LINES.correct));
-          await Speech.say(q.c.ja, q.ans, { el: b });
-          await wait(500); n++;
-          if (n < qs.length) draw();
-          else { view().innerHTML = resultHtml(score, qs.length, "shadow"); finishGame("かげあて", score, qs.length, `${qs.length}もん中 ${score}もん せいかい！`); }
-        } else { tries++; bump(b, false); b.disabled = true; }
-      }));
-    };
-    draw();
-  }
-  function resultHtml(score, total, id) {
-    return `${topbar("けっか", "game", "Result")}
-      <section class="result"><p class="big-stars">${"★".repeat(score)}<span>${"★".repeat(total - score)}</span></p>
-      <h2>${score} / ${total}</h2><p>${score === total ? "ぜんもん せいかい！" : "よく がんばったね！"}</p>
-      <button class="btn primary" onclick="window.APP.replay('${id}')">もういちど</button><a class="btn" href="#/game">ゲームを えらぶ</a></section>`;
-  }
 
   // ---------------- 設定 ----------------
   function openSettings() {
