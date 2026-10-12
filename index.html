@@ -31,12 +31,15 @@
 
   <main id="view"></main>
 
-  <!-- 応援キャラクター：①の動画がベース、②③はアクションで再生 -->
-  <div class="cheer" id="cheer" aria-label="おうえん キャラクター">
-    <video id="cheerIdle" src="media/cheer-idle.mp4" muted loop playsinline autoplay preload="auto"></video>
-    <video id="cheerAct" muted playsinline preload="auto"></video>
-    <p class="bubble" id="cheerBubble"></p>
-  </div>
+  <!-- ガイドキャラクター：①の動画がベース、②③はアクションで再生。読み上げる言葉をふきだしで話す -->
+  <aside class="guide" id="guide" aria-label="ガイド キャラクター">
+    <div class="cheer" id="cheer">
+      <video id="cheerIdle" src="media/cheer-idle.mp4" muted loop playsinline autoplay preload="auto"></video>
+      <video id="cheerAct" muted playsinline preload="auto"></video>
+      <span class="guide-pop" id="cheerPop"></span>
+    </div>
+    <div class="guide-bubble" id="cheerBubble" aria-live="polite"><b class="gb-main"></b><span class="gb-sub"></span></div>
+  </aside>
   <div class="clear-stage" id="clearStage" aria-live="polite">
     <div class="confetti"></div>
     <p class="clear-msg"></p>
