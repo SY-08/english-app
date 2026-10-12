@@ -317,6 +317,54 @@ dialog::backdrop { background: rgba(59, 42, 63, .45); }
 .set-btns { display: flex; justify-content: flex-end; position: sticky; bottom: 0; background: var(--paper-2); padding-top: 6px; }
 
 
+/* ---------- オリジナル／ECC ---------- */
+.game-tabs { display: flex; gap: 6px; background: #fff; border: 2px solid var(--line); border-radius: 999px; padding: 5px; width: max-content; margin: 0 auto 16px; box-shadow: var(--shadow); }
+.game-tabs a { padding: 10px 26px; border-radius: 999px; font-weight: 800; color: var(--ink-2); min-height: 44px; display: grid; place-items: center; }
+.game-tabs a.on { background: var(--berry); color: #fff; }
+.game-tabs a:last-child.on { background: #1E4FA3; }
+.ecc-note { text-align: center; color: var(--ink-2); font-weight: 700; margin: 0 0 12px; }
+.ecc-lesson h3 { margin: 14px 0 8px; font-family: var(--font-en); color: #1E4FA3; }
+.ecc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.ecc-card { position: relative; background: #fff; border: 3px solid #C9D8F0; border-radius: 18px; padding: 12px 14px 12px; box-shadow: 0 4px 0 #C9D8F0; display: flex; flex-direction: column; gap: 2px; }
+.ecc-card:active { transform: translateY(3px); box-shadow: 0 1px 0 #C9D8F0; }
+.ecc-card .pg { position: absolute; top: 8px; right: 10px; font-family: var(--font-en); font-weight: 700; font-size: 13px; color: #1E4FA3; background: #E6EEFB; border-radius: 999px; padding: 1px 8px; }
+.ecc-card b { font-size: 17px; font-weight: 800; padding-right: 44px; }
+.ecc-card small { font-family: var(--font-en); font-size: 13px; color: var(--ink-2); line-height: 1.3; }
+.ecc-tiles { max-width: 720px; }
+.tile.themed .t-emoji { display: block; }
+.ecc-tiles.dark .tile { background: #2E2A33; border-color: #555; }
+.ecc-tiles.dark .tile b { color: #fff; }
+.ecc-tiles.dark .tile.got { background: #5A1F3E; }
+.race { display: flex; flex-direction: column; gap: 16px; }
+.race-row { display: flex; align-items: center; gap: 6px; }
+.race-row .who, .race-row .goal { font-size: 36px; flex: none; }
+.race-track { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+.rl { width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 3px solid var(--line); font-family: var(--font-en); font-weight: 700; font-size: 22px; }
+.rl.done { background: var(--berry); border-color: var(--berry); color: #fff; }
+.rl.stop { background: #FDE2E2; border-color: var(--ng); }
+.race-row.dead { opacity: .5; }
+.race-msg { text-align: center; font-size: 22px; font-weight: 800; color: var(--berry); min-height: 30px; }
+.objects .board-no { text-align: center; font-family: var(--font-en); font-weight: 700; margin: 0 0 6px; }
+.obj-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; background: #fff; border: 3px solid var(--line); border-radius: 22px; padding: 10px; }
+.obj { aspect-ratio: 1; border-radius: 16px; border: 3px solid transparent; padding: 6px; display: grid; place-items: center; }
+.obj .emoji-art { font-size: 46px; }
+.obj.got { border-color: var(--berry); background: #FDEAF3; border-radius: 50%; }
+.match-board.pics .lt { width: 96px; height: 96px; padding: 6px; position: relative; }
+.match-board .lt .num { position: absolute; top: 2px; left: 4px; font-size: 12px; color: var(--ink-2); }
+.sil-face .art { filter: brightness(0) opacity(.85); }
+.lt.done .sil-face .art { filter: none; }
+@media (max-width: 640px) { .match-board.pics .lt { width: 76px; height: 76px; } .rl { width: 32px; height: 32px; font-size: 18px; } .race-row .who, .race-row .goal { font-size: 28px; } }
+
+/* ---------- もういちど きく ---------- */
+.ask-row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 14px; }
+.ask-row .ask { margin-bottom: 0; flex: 1; min-width: 0; }
+.replay { flex: none; width: 92px; border-radius: 20px; background: var(--coral); color: #fff; border: 3px solid #D9772A; box-shadow: 0 5px 0 #D9772A; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 4px; }
+.replay span { font-size: 30px; line-height: 1; }
+.replay small { font-size: 12px; font-weight: 800; line-height: 1.2; text-align: center; }
+.replay:active { transform: translateY(3px); box-shadow: 0 2px 0 #D9772A; }
+.replay.pulse { animation: okpop .35s ease; }
+@media (max-width: 640px) { .replay { width: 78px; } .replay span { font-size: 26px; } }
+
 /* ---------- ゲーム（ランダム・レベル） ---------- */
 .lv-badge { font-size: 13px; color: #E0A800; letter-spacing: 1px; margin-top: 2px; }
 .levels { display: flex; flex-direction: column; gap: 12px; max-width: 640px; margin: 0 auto; }
