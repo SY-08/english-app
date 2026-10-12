@@ -264,17 +264,38 @@ main { max-width: 980px; margin: 0 auto; padding: 0 16px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 22px; border-radius: 999px; background: #fff; border: 3px solid var(--line); font-weight: 800; margin: 6px; box-shadow: var(--shadow); }
 .btn.primary { background: var(--berry); border-color: #9E2463; color: #fff; }
 
-/* ---------- cheer character ---------- */
-.cheer { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); width: 132px; height: 132px; border-radius: 50%; overflow: visible; z-index: 30; cursor: pointer; transition: transform .3s, width .3s, height .3s; }
-.cheer video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 6px 18px rgba(194, 53, 122, .28); background: #EFC5CF; }
+/* ---------- ガイドキャラクター（主役） ---------- */
+/* 基本（スマホ・iPad縦）：画面の下に、キャラ＋ふきだし */
+.guide { position: fixed; z-index: 30; left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
+.guide > * { pointer-events: auto; }
+body[data-mode="adult"] .guide { display: none; }
+.cheer { position: relative; flex: none; width: 118px; height: 118px; border-radius: 50%; cursor: pointer; transition: transform .3s; }
+.cheer video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; border: 5px solid #fff; box-shadow: 0 8px 22px rgba(194, 53, 122, .32); background: #EFC5CF; }
 .cheer #cheerAct { opacity: 0; transition: opacity .2s; }
 .cheer.acting #cheerAct { opacity: 1; }
-.cheer.acting { transform: scale(1.12); }
+.cheer.acting { transform: scale(1.08); }
 .cheer.shake { animation: shake .45s ease; }
-.bubble { position: absolute; right: 108%; bottom: 60%; margin: 0; white-space: nowrap; background: #fff; border: 3px solid var(--berry); color: var(--berry); padding: 8px 14px; border-radius: 18px 18px 4px 18px; font-weight: 800; font-size: 17px; opacity: 0; transform: translateY(8px) scale(.9); transition: .2s; pointer-events: none; box-shadow: var(--shadow); }
-.bubble.show { opacity: 1; transform: none; }
-body.clear-on .cheer { width: min(72vw, 420px); height: min(72vw, 420px); right: 50%; bottom: 50%; transform: translate(50%, 50%); z-index: 41; }
-body.clear-on .cheer .bubble { opacity: 0; }
+.guide.talking .cheer { animation: talk .42s ease-in-out infinite alternate; }
+@keyframes talk { from { transform: translateY(0) scale(1); } to { transform: translateY(-5px) scale(1.035); } }
+.guide-bubble { position: relative; flex: 1; min-width: 0; min-height: 64px; margin: 0 0 22px; background: #fff; border: 3px solid var(--berry); border-radius: 22px 22px 22px 8px; padding: 10px 16px; box-shadow: 0 6px 16px rgba(59, 42, 63, .12); display: flex; flex-direction: column; justify-content: center; }
+.guide-bubble::before { content: ""; position: absolute; left: -14px; bottom: 10px; border: 9px solid transparent; border-right: 14px solid var(--berry); }
+.guide-bubble::after { content: ""; position: absolute; left: -8px; bottom: 13px; border: 6px solid transparent; border-right: 10px solid #fff; }
+.guide-bubble:empty, .guide-bubble .gb-main:empty + .gb-sub:empty { }
+.guide-bubble.new { animation: bubblein .28s ease; }
+@keyframes bubblein { from { transform: scale(.94); opacity: .4; } }
+.guide.talking .guide-bubble { border-color: var(--coral); }
+.gb-main { font-family: var(--font-en); font-weight: 700; font-size: clamp(19px, 4.6vw, 26px); line-height: 1.2; color: var(--ink); overflow-wrap: anywhere; }
+.gb-sub { font-size: 14px; font-weight: 700; color: var(--ink-2); margin-top: 2px; }
+.gb-sub:empty { display: none; }
+.guide-pop { position: absolute; left: 50%; top: -14px; transform: translate(-50%, 6px) scale(.8); background: var(--berry); color: #fff; font-weight: 800; font-size: 16px; white-space: nowrap; padding: 4px 12px; border-radius: 999px; opacity: 0; pointer-events: none; box-shadow: var(--shadow); }
+.guide-pop.show { animation: popup 1.6s ease forwards; }
+@keyframes popup { 0% { opacity: 0; transform: translate(-50%, 8px) scale(.7); } 15% { opacity: 1; transform: translate(-50%, -6px) scale(1.08); } 75% { opacity: 1; transform: translate(-50%, -8px) scale(1); } 100% { opacity: 0; transform: translate(-50%, -16px) scale(.95); } }
+body { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
+
+/* クリア：キャラが画面のまんなかで大きく */
+body.clear-on .guide { z-index: 41; }
+body.clear-on .guide-bubble { visibility: hidden; }
+body.clear-on .cheer { position: fixed; width: min(72vw, 420px); height: min(72vw, 420px); left: 50%; top: 44%; transform: translate(-50%, -50%); animation: none; }
 .clear-stage { position: fixed; inset: 0; z-index: 40; background: rgba(255, 233, 243, .9); display: none; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 6vh; overflow: hidden; }
 .clear-stage.show { display: flex; }
 .clear-msg { font-size: clamp(24px, 5.4vw, 38px); font-weight: 800; color: var(--berry); text-align: center; margin: 0 16px; background: #fff; border-radius: 22px; padding: 12px 24px; box-shadow: var(--shadow); }
@@ -301,13 +322,11 @@ body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none
 input, select, textarea { -webkit-user-select: text; user-select: text; font-size: 16px; }
 button, a, .card, .tile, .cell, .opt, .lt, .dd, .page, .cheer { touch-action: manipulation; }
 main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
-body { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 @media (hover: hover) {
   .card:hover, .menu-card:hover, .choose:hover, .phase:hover, .opt:hover:not(:disabled) { filter: brightness(1.03); }
 }
 
 /* iPad・PC：右下のキャラに中身がかぶらないように */
-@media (min-width: 641px) { .tap-foot, .dice-row, .board { padding-right: 150px; } }
 
 /* iPad 縦（〜1024px）：カードを少し大きく */
 @media (min-width: 641px) and (max-width: 1024px) {
@@ -330,8 +349,6 @@ body { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
   .tap-foot { grid-template-columns: 1fr; }
   .practice { justify-content: space-between; }
   .board { grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .cheer { width: 88px; height: 88px; }
-  .bubble { font-size: 15px; padding: 6px 12px; }
   .tiles { grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .opts { gap: 8px; }
   .opt { padding: 8px; border-radius: 18px; }
@@ -353,9 +370,6 @@ body { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
   .opp-pic.size { height: 180px; }
   .opp-pic .o-big { width: 150px; height: 150px; }
   .shadow { width: 160px; height: 160px; }
-}
-@media (max-width: 640px), (orientation: landscape) and (max-height: 540px) {
-  .bubble { right: 0; bottom: 104%; border-radius: 16px 16px 4px 16px; white-space: nowrap; max-width: 70vw; }
 }
 /* とても小さいスマホ */
 @media (max-width: 360px) {
@@ -381,20 +395,49 @@ body { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
   .story .pager { margin-top: 8px; justify-content: center; }
   .round { width: 56px; height: 56px; }
   .round.listen, .round.auto { width: 64px; height: 64px; }
-  .cheer { width: 80px; height: 80px; }
   .phase-grid { grid-template-columns: repeat(3, 1fr); }
   .phase { flex-direction: column; text-align: center; padding: 12px 8px; }
   .phase small { margin-left: 0; }
+  .phase b { font-size: 15px; }
+  .phase .ph-art { width: 64px; height: 64px; }
   .kids-home .hello { margin: 8px 0; }
   .kids-home h1 { font-size: 40px; }
   .opts { max-width: 520px; }
   .opt { aspect-ratio: 4 / 3; }
   .tiles { max-width: 520px; grid-template-columns: repeat(8, 1fr); }
   .dot-board { max-width: 360px; }
-  .story-text, .story-ctrl, .story .pager { margin-right: 92px; }
   .ask { padding: 6px 12px; margin-bottom: 8px; }
   .ask-emoji { font-size: 30px; }
-  body.clear-on .cheer { width: min(60vh, 320px); height: min(60vh, 320px); }
+}
+
+/* iPad縦など（641px〜）：下のキャラを大きく */
+@media (min-width: 641px) {
+  .cheer { width: 150px; height: 150px; }
+  .gb-main { font-size: 28px; }
+  .gb-sub { font-size: 16px; }
+  body { padding-bottom: calc(200px + env(safe-area-inset-bottom)); }
+}
+/* iPad横・パソコン（横に広い）：左がわにキャラが立つ */
+@media (min-width: 1000px) and (min-height: 600px) {
+  .guide { left: max(16px, env(safe-area-inset-left)); right: auto; top: 92px; bottom: auto; width: 260px; flex-direction: column; align-items: center; gap: 14px; }
+  .cheer { width: 240px; height: 240px; }
+  .guide-bubble { width: 100%; margin: 0; border-radius: 22px; min-height: 90px; text-align: center; }
+  .guide-bubble::before { left: 50%; top: -22px; bottom: auto; transform: translateX(-50%); border: 10px solid transparent; border-bottom: 14px solid var(--berry); }
+  .guide-bubble::after { left: 50%; top: -14px; bottom: auto; transform: translateX(-50%); border: 7px solid transparent; border-bottom: 10px solid #fff; }
+  body:not([data-mode="adult"]) main { margin-left: max(296px, calc((100vw - 980px) / 2)); margin-right: max(16px, calc((100vw - 980px) / 2 - 296px)); }
+  body { padding-bottom: 40px; }
+}
+/* スマホ・iPadの横向き（高さが低い）：左にキャラ、下にふきだし */
+@media (orientation: landscape) and (max-height: 540px) {
+  .guide { right: auto; top: 58px; bottom: auto; width: 128px; flex-direction: column; align-items: center; gap: 8px; }
+  .cheer { width: 112px; height: 112px; }
+  .guide-bubble { width: 100%; margin: 0; padding: 6px 8px; min-height: 0; border-radius: 16px; text-align: center; }
+  .guide-bubble::before, .guide-bubble::after { display: none; }
+  .gb-main { font-size: 16px; }
+  .gb-sub { font-size: 11px; }
+  body:not([data-mode="adult"]) main { margin-left: max(146px, env(safe-area-inset-left)); }
+  body { padding-bottom: 24px; }
+  body.clear-on .cheer { width: min(62vh, 300px); height: min(62vh, 300px); }
 }
 
 /* ホーム画面から開いたとき（全画面） */
