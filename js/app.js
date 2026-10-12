@@ -637,27 +637,48 @@
   // ---------------- 設定 ----------------
   function openSettings() {
     const s = Settings.data;
+    const backup = Object.assign({}, s);
     const dlg = document.getElementById("settings");
     const q = Log.queue().length, h = Log.history().length;
+    const sel = (cur, v) => (cur === v ? "selected" : "");
+    const voiceOpts = (lang, cur) => {
+      const list = Speech.voiceList(lang);
+      const auto = list[0] ? `おすすめ（${list[0].name.replace(/^Microsoft |\s*\(.*\)| Online.*$/g, "")}）` : "おすすめ";
+      return `<option value="">${esc(auto)}</option>` + list.map((v) => `<option value="${esc(v.name)}" ${sel(cur, v.name)}>${esc(v.name)}</option>`).join("");
+    };
     dlg.innerHTML = `<form method="dialog" class="set-form">
       <h2>せってい</h2>
       <label>なまえ（記録に のります）<input name="name" value="${esc(s.name)}" placeholder="例：はなこ"></label>
-      <label>えいごの はやさ
-        <select name="enRate"><option value="0.7" ${s.enRate == 0.7 ? "selected" : ""}>ゆっくり</option><option value="0.85" ${s.enRate == 0.85 ? "selected" : ""}>ふつう</option><option value="1" ${s.enRate == 1 ? "selected" : ""}>はやい</option></select></label>
+      <label>よみあげの はやさ
+        <select name="speed"><option value="slow" ${sel(s.speed, "slow")}>ゆっくり（5さい むけ）</option><option value="normal" ${sel(s.speed, "normal")}>ふつう</option><option value="fast" ${sel(s.speed, "fast")}>はやい</option></select></label>
+      <label>こえの たかさ
+        <select name="pitch"><option value="high" ${sel(s.pitch, "high")}>たかめ（こども むけ）</option><option value="normal" ${sel(s.pitch, "normal")}>ふつう</option></select></label>
       <label>よみあげ
-        <select name="order"><option value="ja-en" ${s.order === "ja-en" ? "selected" : ""}>にほんご → えいご</option><option value="en" ${s.order === "en" ? "selected" : ""}>えいご だけ</option></select></label>
+        <select name="order"><option value="ja-en" ${sel(s.order, "ja-en")}>にほんご → えいご</option><option value="en" ${sel(s.order, "en")}>えいご だけ</option></select></label>
+      <details><summary>こえを えらぶ（にほんご／えいご）</summary>
+        <label>にほんごの こえ<select name="voiceJa">${voiceOpts("ja", s.voiceJa)}</select></label>
+        <label>えいごの こえ<select name="voiceEn">${voiceOpts("en", s.voiceEn)}</select></label>
+        <p class="note">端末に入っている声から、女性の声を上に並べています。iPhone・iPadは「設定 → アクセシビリティ → 読み上げコンテンツ → 声」で声を追加できます。</p>
+      </details>
+      <button class="btn" type="button" id="setTry">🔈 ためしに きく</button>
       <details ${s.gasUrl ? "" : "open"}><summary>保護者の方へ：学習記録（スプレッドシート）</summary>
         <label>Apps Script のウェブアプリURL<input name="gasUrl" value="${esc(s.gasUrl)}" placeholder="https://script.google.com/macros/s/.../exec"></label>
         <p class="note">記録 ${h}件（未送信 ${q}件）。URLが空のときは、この端末に記録をためておき、URLを入れると まとめて送ります。</p>
       </details>
-      <div class="set-btns"><button class="btn" value="cancel">とじる</button><button class="btn primary" value="ok" id="setOk">ほぞん</button></div>
+      <div class="set-btns"><button class="btn" value="cancel" id="setCancel">とじる</button><button class="btn primary" value="ok" id="setOk">ほぞん</button></div>
     </form>`;
     dlg.showModal();
+    const f = $(".set-form", dlg);
+    const voicePart = () => ({ speed: f.speed.value, pitch: f.pitch.value, order: f.order.value, voiceJa: f.voiceJa.value, voiceEn: f.voiceEn.value });
+    $("#setTry", dlg).addEventListener("click", () => {
+      Object.assign(Settings.data, voicePart()); // 保存はせずに、いまの選び方で読んでみる
+      Speech.say("カバンが ほしい。", "I want a bag.");
+    });
+    $("#setCancel", dlg).addEventListener("click", () => { Speech.stop(); Object.assign(Settings.data, backup); });
     $("#setOk", dlg).addEventListener("click", () => {
-      const f = $(".set-form", dlg);
-      Settings.save({ name: f.name.value.trim(), enRate: +f.enRate.value, order: f.order.value, gasUrl: f.gasUrl.value.trim() });
+      Settings.save(Object.assign({ name: f.name.value.trim(), gasUrl: f.gasUrl.value.trim() }, voicePart()));
       Log.flush();
-      Speech.say("せっていを ほぞんしました", "OK!");
+      Speech.say("せっていを ほぞんしたよ", "OK!");
       if (document.body.dataset.route === "kids") route();
     });
   }

@@ -11,12 +11,20 @@
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   // ---------------- 設定 ----------------
-  const DEFAULTS = { name: "", gasUrl: (window.APP_CONFIG && window.APP_CONFIG.gasUrl) || "", enRate: 0.85, order: "ja-en", mode: "" };
+  // speed: slow（5さいむけ）/ normal / fast　pitch: high（こどもむけ）/ normal
+  // voiceJa / voiceEn: "" = おすすめを自動でえらぶ、それ以外は声の名前
+  const SETTINGS_VERSION = 2;
+  const DEFAULTS = { v: SETTINGS_VERSION, name: "", gasUrl: (window.APP_CONFIG && window.APP_CONFIG.gasUrl) || "", speed: "slow", pitch: "high", voiceJa: "", voiceEn: "", order: "ja-en", mode: "" };
+  const saved = store.get("settings", {});
+  if ((saved.v || 1) < SETTINGS_VERSION) { // 前のバージョンの設定は、新しい「こども向け」の声と速さにそろえる
+    delete saved.enRate; saved.speed = "slow"; saved.pitch = "high"; saved.v = SETTINGS_VERSION;
+  }
   const Settings = {
-    data: Object.assign({}, DEFAULTS, store.get("settings", {})),
+    data: Object.assign({}, DEFAULTS, saved),
     save(patch) { Object.assign(this.data, patch); store.set("settings", this.data); }
   };
   if (!Settings.data.gasUrl && DEFAULTS.gasUrl) Settings.data.gasUrl = DEFAULTS.gasUrl;
+  store.set("settings", Settings.data);
 
   // ---------------- 読み上げ ----------------
   const synth = window.speechSynthesis;
@@ -34,11 +42,37 @@
   ["pointerdown", "touchend", "click"].forEach((ev) => document.addEventListener(ev, unlockSpeech, { once: true, passive: true }));
   // アプリを閉じたり別のアプリに切り替えたら読み上げを止める
   document.addEventListener("visibilitychange", () => { if (document.hidden && synth) { token++; synth.cancel(); } });
+  // 子どもが聞きやすい「女性の声」を優先してえらぶ（端末に入っている声の中から）
+  const FEMALE = {
+    // en: Ana は子どもの声（Edge / Windows）。そのあとは明るい女性の声
+    en: ["Ana Online", "Microsoft Ana", "Jenny Online", "Aria Online", "Michelle Online", "Samantha", "Google US English", "Ava", "Allison", "Susan", "Zoe", "Karen", "Tessa", "Moira", "Fiona", "Victoria", "Zira", "Microsoft Aria", "Microsoft Jenny", "Google UK English Female"],
+    ja: ["Nanami Online", "Aoi Online", "Mayu Online", "Microsoft Nanami", "Google 日本語", "Kyoko", "O-Ren", "Sayaka", "Microsoft Ayumi", "Microsoft Haruka", "Mizuki"]
+  };
+  const MALE = /(Daniel|Alex\b|Fred|Tom\b|Aaron|Guy|David|Mark|Rishi|Arthur|Oliver|Gordon|Ralph|Albert|Bruce|Junior|Eddy|Reed|Rocko|Grandpa|Male|Otoya|Hattori|Ichiro|Keita|Daichi|Naoki|Kenji)/i;
+  function voicesFor(lang) {
+    return voices.filter((v) => v.lang && v.lang.toLowerCase().replace("_", "-").startsWith(lang === "en" ? "en" : "ja"));
+  }
+  function rankVoices(lang) {
+    const list = voicesFor(lang);
+    const score = (v) => {
+      const i = FEMALE[lang].findIndex((p) => v.name.includes(p));
+      if (i >= 0) return i;
+      if (MALE.test(v.name)) return 900;
+      return lang === "en" && !/en[-_]US/i.test(v.lang) ? 500 : 400;
+    };
+    return list.slice().sort((a, b) => score(a) - score(b));
+  }
   function voiceFor(lang) {
-    const pref = lang === "en" ? ["Samantha", "Google US English", "Microsoft Aria", "Karen", "Daniel"] : ["Kyoko", "O-Ren", "Google 日本語", "Microsoft Nanami", "Haruka"];
-    const list = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith(lang === "en" ? "en" : "ja"));
-    for (const p of pref) { const v = list.find((x) => x.name.includes(p)); if (v) return v; }
-    return list[0] || null;
+    const want = lang === "en" ? Settings.data.voiceEn : Settings.data.voiceJa;
+    if (want) { const v = voicesFor(lang).find((x) => x.name === want); if (v) return v; }
+    return rankVoices(lang)[0] || null;
+  }
+  // 速さ（rate）と高さ（pitch）。slow = 5さいの子が聞き取りやすい速さ
+  const RATE = { slow: { ja: 0.85, en: 0.62 }, normal: { ja: 0.95, en: 0.78 }, fast: { ja: 1.05, en: 0.92 } };
+  function rateFor(lang) { return (RATE[Settings.data.speed] || RATE.slow)[lang]; }
+  function pitchFor(v) {
+    if (Settings.data.pitch !== "high") return 1.0;
+    return v && /Ana/.test(v.name) ? 1.08 : 1.25; // もともと子どもの声なら上げすぎない
   }
   let token = 0;
   function speakOne(text, lang, myToken) {
@@ -47,13 +81,13 @@
       const u = new SpeechSynthesisUtterance(text);
       u.lang = lang === "en" ? "en-US" : "ja-JP";
       const v = voiceFor(lang); if (v) u.voice = v;
-      u.rate = lang === "en" ? Settings.data.enRate : 1.0;
-      u.pitch = 1.05;
+      u.rate = rateFor(lang);
+      u.pitch = pitchFor(v);
       let done = false;
       const fin = () => { if (!done) { done = true; resolve(); } };
       u.onend = fin; u.onerror = fin;
       // 一部ブラウザで onend が来ないときの保険
-      setTimeout(fin, 1500 + text.length * (lang === "en" ? 140 : 220) / u.rate);
+      setTimeout(fin, 2500 + text.length * (lang === "en" ? 150 : 240) / u.rate);
       synth.speak(u);
       if (synth.paused) synth.resume();
     });
@@ -66,11 +100,13 @@
       this.stop();
       const my = token;
       setSpeaking(true, opts.el);
-      if (ja && Settings.data.order !== "en" && !opts.enOnly) { await speakOne(ja, "ja", my); await wait(220); }
+      if (ja && Settings.data.order !== "en" && !opts.enOnly) { await speakOne(ja, "ja", my); await wait(Settings.data.speed === "slow" ? 650 : 350); }
       if (en) await speakOne(en, "en", my);
       if (my === token) setSpeaking(false, opts.el);
     },
-    en(text, opts = {}) { return this.say(null, text, opts); }
+    en(text, opts = {}) { return this.say(null, text, opts); },
+    voiceList(lang) { return rankVoices(lang); },
+    currentVoice(lang) { return voiceFor(lang); }
   };
   let speakingFlag = false;
   function setSpeaking(on, el) {
