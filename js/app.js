@@ -38,6 +38,76 @@
       <div class="tb-title"><b>${title}</b>${sub ? `<small>${sub}</small>` : ""}</div><span></span></div>`;
   }
 
+  // ---------------- スタンプ ----------------
+  // クリアするたびに 1こ。ぜんもん せいかい＝はなまる、8わり いじょう＝きんいろ。20こで カード 1まい
+  const STAMP_SET = ["🌟", "🌸", "🍓", "🚀", "🐰", "🎈", "🍀", "🌈", "🐻", "🍩", "🌻", "🐳", "🦋", "🍒", "🎀", "🐥", "🍉", "⚽", "🎵", "🐼", "🦄", "🍭", "🐬", "🌙"];
+  const CARD_SIZE = 20;
+  const Stamps = {
+    all() { return window.CORE.store.get("stamps", []); },
+    has(key) { return this.all().some((s) => s.key === key); },
+    count(prefix) { return this.all().filter((s) => s.key && s.key.startsWith(prefix)).length; },
+    best(prefix) { const l = this.all().filter((s) => s.key && s.key.startsWith(prefix)); return l.some((s) => s.kind === "hanamaru") ? "hanamaru" : l.some((s) => s.kind === "gold") ? "gold" : l.length ? "normal" : ""; },
+    add(key, item, correct, total) {
+      const rate = total ? correct / total : 1;
+      const kind = rate >= 1 ? "hanamaru" : rate >= 0.8 ? "gold" : "normal";
+      const list = this.all();
+      const s = { e: kind === "hanamaru" ? "💮" : pick(STAMP_SET), kind, key, item, date: new Date().toLocaleDateString("ja-JP"), t: Date.now() };
+      list.push(s); window.CORE.store.set("stamps", list.slice(-2000));
+      return { s, n: list.length };
+    },
+    // ポン！という おと（WebAudio）
+    sound() {
+      try {
+        const C = this.ctx || (this.ctx = new (window.AudioContext || window.webkitAudioContext)());
+        const o = C.createOscillator(), g = C.createGain(), t = C.currentTime;
+        o.type = "sine"; o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.18);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+        o.connect(g).connect(C.destination); o.start(t); o.stop(t + 0.3);
+      } catch (e) {}
+    }
+  };
+  const stampHtml = (s, big) => `<span class="stamp ${s.kind} ${big ? "big" : ""}" style="--rot:${(s.t % 25) - 12}deg"><span class="st-e">${s.e}</span></span>`;
+  // クリアしたときに よぶ：スタンプを おして、画面に ポン！と だす
+  function award(key, item, correct, total) {
+    const { s, n } = Stamps.add(key, item, correct, total);
+    const inCard = ((n - 1) % CARD_SIZE) + 1, card = Math.ceil(n / CARD_SIZE);
+    const pop = document.getElementById("stampPop");
+    if (pop) {
+      pop.innerHTML = `${stampHtml(s, true)}<p class="stamp-label">${s.kind === "hanamaru" ? "はなまる スタンプ！" : s.kind === "gold" ? "キラキラ スタンプ！" : "スタンプ ゲット！"}<small>${inCard === CARD_SIZE ? `カード ${card}まいめ が いっぱいに なったよ！` : `カード ${card}まいめ　${inCard} / ${CARD_SIZE}`}</small></p>`;
+      pop.classList.remove("show"); void pop.offsetWidth;
+      setTimeout(() => { pop.classList.add("show"); Stamps.sound(); }, 650);
+    }
+    return s;
+  }
+  window.APP_STAMPS = Stamps;
+
+  routes.stamps = () => {
+    const list = Stamps.all();
+    const cards = Math.max(1, Math.ceil(list.length / CARD_SIZE));
+    let cur = cards - (list.length && list.length % CARD_SIZE === 0 ? 0 : 0);
+    const draw = (ci) => {
+      const part = list.slice((ci - 1) * CARD_SIZE, ci * CARD_SIZE);
+      view().innerHTML = `${topbar("スタンプカード", "kids", "Stamps")}
+        <section class="stamp-page">
+          <div class="stamp-card">
+            <div class="sc-head"><b>${esc(Settings.data.name || "")}${Settings.data.name ? " の " : ""}スタンプカード</b><span>${ci} まいめ</span></div>
+            <div class="sc-grid">${Array.from({ length: CARD_SIZE }, (_, i) => part[i] ? `<button class="sc-slot filled" data-i="${(ci - 1) * CARD_SIZE + i}">${stampHtml(part[i])}<small>${esc(part[i].date.replace(/^\d+\//, ""))}</small></button>` : `<span class="sc-slot"><i>${i + 1}</i></span>`).join("")}</div>
+            <p class="sc-foot">${part.length} / ${CARD_SIZE}　${part.length === CARD_SIZE ? "いっぱい！ すごい！" : `あと ${CARD_SIZE - part.length}こ で いっぱい`}</p>
+          </div>
+          ${cards > 1 ? `<div class="sc-pager">${Array.from({ length: cards }, (_, i) => `<button class="${i + 1 === ci ? "on" : ""}" data-c="${i + 1}">${i + 1}</button>`).join("")}</div>` : ""}
+          <p class="sc-total">ぜんぶで ${list.length}こ（💮 はなまる ${list.filter((s) => s.kind === "hanamaru").length}こ）</p>
+        </section>`;
+      $$(".sc-slot.filled").forEach((b) => b.addEventListener("click", () => {
+        const s = list[+b.dataset.i];
+        Cheer.say(s.item, `${s.date} に もらったよ`);
+        b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop");
+      }));
+      $$(".sc-pager button").forEach((b) => b.addEventListener("click", () => draw(+b.dataset.c)));
+    };
+    draw(cur);
+    Cheer.say(list.length ? `${list.length} stamps!` : "Let's get stamps!", list.length ? "スタンプ いっぱい あつめよう！" : "クリアすると スタンプが もらえるよ");
+  };
+
   // ---------------- 最初の画面（大人／子供） ----------------
   routes.start = () => {
     view().innerHTML = `
@@ -94,6 +164,11 @@
           <a class="phase p2" href="#/tap"><em>2</em><span class="ph-art">${A.render("shape:star")}</span><b>タップして きこう</b><small>Words</small></a>
           <a class="phase p3" href="#/game"><em>3</em><span class="ph-art">${A.render("emoji:🎮")}</span><b>ゲームで あそぼう</b><small>Games</small></a>
         </div>
+        <a class="stamp-bar" href="#/stamps">
+          <span class="sb-title">スタンプカード</span>
+          <span class="sb-mini">${(() => { const l = Stamps.all(); const part = l.slice(Math.floor((l.length - (l.length % CARD_SIZE === 0 && l.length ? CARD_SIZE : l.length % CARD_SIZE)) / 1)); const shown = l.length ? l.slice(-Math.min(8, ((l.length - 1) % CARD_SIZE) + 1)) : []; return shown.map((s) => stampHtml(s)).join("") || "<em>クリアすると スタンプが もらえるよ</em>"; })()}</span>
+          <span class="sb-count">${Stamps.all().length ? `${((Stamps.all().length - 1) % CARD_SIZE) + 1} / ${CARD_SIZE}` : `0 / ${CARD_SIZE}`}</span>
+        </a>
         <div class="week"><p>がんばった日</p><ul>${week}</ul></div>
       </section>`;
     Cheer.say(name ? `Hello, ${name}!` : "Hello!", "きょうは どれで あそぶ？");
@@ -136,6 +211,7 @@
         Log.record({ phase: "①ストーリー", item: "I Want（おはなし）", result: seen.size === pages.length ? "さいごまで" : "とちゅうから", seconds: Timer.sec() });
         await wait(300);
         Cheer.play("clear", "おはなし さいごまで きけたね！");
+        award("story", "おはなし I Want", 1, 1);
       } else if (speak && i > 0) {
         Cheer.play("tap", pick(Cheer.LINES.tap));
       }
@@ -213,6 +289,7 @@
         if (completes) {
           Log.record({ phase: "②タップ", item: sec.title, result: "ぜんぶ きいた", correct: tapped.size, total: sec.cards.length, seconds: Timer.sec() });
           Cheer.play("clear", `${sec.ja}、ぜんぶ きけたね！`);
+          award("tap:" + sec.id, sec.ja, 1, 1);
           const li = $$(".practice li").find((x) => !x.textContent);
           if (li) li.textContent = new Date().toLocaleDateString("ja-JP").replace(/^\d+\//, "");
         }
@@ -233,7 +310,7 @@
   function tapMenu() {
     view().innerHTML = `${topbar("タップして きこう", "kids", "Words")}
       <section class="menu-grid">
-        ${D.sections.map((s) => `<a class="menu-card" href="#/tap/${s.id}"><span class="mc-art">${A.render(s.icon)}</span><b>${esc(s.ja)}</b><small>${esc(s.title)}</small></a>`).join("")}
+        ${D.sections.map((s) => `<a class="menu-card" href="#/tap/${s.id}"><span class="mc-art">${A.render(s.icon)}</span><b>${esc(s.ja)}</b><small>${esc(s.title)}</small>${badge("tap:" + s.id)}</a>`).join("")}
         <a class="menu-card special" href="#/tap/sugoroku"><span class="mc-art">${A.render("emoji:🎲")}</span><b>すごろく</b><small>Start → Finish</small></a>
       </section>`;
     Cheer.say("Tap and listen!", "どれを きいてみる？");
@@ -286,6 +363,7 @@
         $("#said").innerHTML = `<p class="en">Finish!</p><p class="ja">ゴール！</p>`;
         Log.record({ phase: "②タップ", item: "すごろく", result: "ゴール", seconds: Timer.sec() });
         Cheer.play("clear", "ゴール！ よく がんばったね！");
+        award("tap:sugoroku", "すごろく", 1, 1);
         await Speech.say("ゴール！", "Finish!");
       } else {
         $("#said").innerHTML = `<p class="en">${esc(c.en)}</p><p class="ja">${c.action ? "やってみよう！ " : ""}${esc(c.ja)}</p>`;
@@ -576,7 +654,7 @@
       </div></section>`;
     const again = $("[data-again]");
     if (again) again.addEventListener("click", (e) => { e.preventDefault(); routes.game(game.id, String(lv)); });
-    finishGame(`${game.ja} ${STARS(lv)}`, score, total, `${total}もん中 ${score}もん せいかい！`);
+    finishGame(`${game.ja} ${STARS(lv)}`, score, total, `${total}もん中 ${score}もん せいかい！`, `game:${game.id}:${lv}`);
   }
 
   routes.game = (id, lvArg) => {
@@ -584,7 +662,7 @@
     if (!id) {
       view().innerHTML = `${topbar("ゲームで あそぼう", "kids", "Games")}
         ${gameTabs("orig")}
-        <section class="menu-grid">${GAMES.map((g) => `<a class="menu-card ${g.special ? "special" : ""}" href="#/game/${g.id}"><span class="mc-art">${A.render(g.icon)}</span><b>${g.ja}</b><small>${g.en}</small><span class="lv-badge">${STARS(Levels.get(g.id))}</span></a>`).join("")}</section>`;
+        <section class="menu-grid">${GAMES.map((g) => `<a class="menu-card ${g.special ? "special" : ""}" href="#/game/${g.id}"><span class="mc-art">${A.render(g.icon)}</span><b>${g.ja}</b><small>${g.en}</small><span class="lv-badge">${STARS(Levels.get(g.id))}</span>${badge("game:" + g.id + ":")}</a>`).join("")}</section>`;
       Cheer.say("Let's play a game!", "どの ゲームに する？");
       return;
     }
@@ -610,14 +688,15 @@
     view().innerHTML = `${topbar(game.ja, "game", game.en)}
       <section class="levels">
         <div class="lv-head"><span class="mc-art">${A.render(game.icon)}</span><p>レベルを えらんでね<br><small>まいかい ちがう もんだいが でるよ</small></p></div>
-        ${[1, 2, 3].map((l) => `<a class="lv-card lv${l} ${l === rec ? "rec" : ""}" href="#/game/${game.id}/${l}"><b>${STARS(l)}</b><span>${esc(game.lv[l - 1])}</span>${l === rec ? `<em>おすすめ</em>` : ""}</a>`).join("")}
+        ${[1, 2, 3].map((l) => `<a class="lv-card lv${l} ${l === rec ? "rec" : ""}" href="#/game/${game.id}/${l}"><b>${STARS(l)}</b><span>${esc(game.lv[l - 1])}</span>${l === rec ? `<em>おすすめ</em>` : ""}${badge(`game:${game.id}:${l}`)}</a>`).join("")}
       </section>`;
     Cheer.say("Choose a level!", "どの レベルに する？");
   }
 
-  function finishGame(name, correct, total, extraMsg) {
+  function finishGame(name, correct, total, extraMsg, key) {
     Log.record({ phase: "③ゲーム", item: name, result: correct >= total ? "クリア" : "とちゅう", correct, total, seconds: Timer.sec() });
     Cheer.play("clear", extraMsg || pick(Cheer.LINES.clear));
+    award(key || "game:" + name, name, correct, total);
   }
   function bump(el, ok) {
     el.classList.remove("ok", "ng"); void el.offsetWidth; el.classList.add(ok ? "ok" : "ng");
@@ -834,13 +913,21 @@
   const eccById = (id) => ECC.find((x) => x.id === id);
   window.__ECC = ECC;
 
+  // クリアした しるし（スタンプの かず）
+  function badge(prefix) {
+    const n = Stamps.count(prefix);
+    if (!n) return "";
+    const k = Stamps.best(prefix);
+    return `<span class="clear-badge ${k}">${k === "hanamaru" ? "💮" : "✔"}${n > 1 ? `<small>×${n}</small>` : ""}</span>`;
+  }
+
   function eccMenu() {
     const lessons = [...new Set(ECC.map((a) => a.lesson))];
     view().innerHTML = `${topbar("ゲームで あそぼう", "kids", "Games")}
       ${gameTabs("ecc")}
       <section class="ecc-list">
         <p class="ecc-note">ECCの ワークブック（Lesson 23〜30）の ページを そのまま ゲームに しました。</p>
-        ${lessons.map((l) => `<div class="ecc-lesson"><h3>Lesson ${l}</h3><div class="ecc-cards">${ECC.filter((a) => a.lesson === l).map((a) => `<a class="ecc-card" href="#/game/ecc/${a.id}"><span class="pg">p.${a.page}</span><b>${esc(a.ja)}</b><small>${esc(a.en)}</small></a>`).join("")}</div></div>`).join("")}
+        ${lessons.map((l) => `<div class="ecc-lesson"><h3>Lesson ${l}</h3><div class="ecc-cards">${ECC.filter((a) => a.lesson === l).map((a) => `<a class="ecc-card ${Stamps.has("ecc:" + a.id) ? "cleared" : ""}" href="#/game/ecc/${a.id}"><span class="pg">p.${a.page}</span><b>${esc(a.ja)}</b><small>${esc(a.en)}</small>${badge("ecc:" + a.id)}</a>`).join("")}</div></div>`).join("")}
       </section>`;
     Cheer.say("ECC games!", "どの ページで あそぶ？");
   }
@@ -853,7 +940,7 @@
       <h2>${score} / ${total}</h2><p>${score === total ? "ぜんぶ できたね！" : "よく がんばったね！"}</p>
       <div class="result-btns"><a class="btn primary" href="#/game/ecc/${act.id}" data-again>もういちど</a><a class="btn" href="#/game/ecc">ECC の いちらん</a></div></section>`;
     $("[data-again]").addEventListener("click", (e) => { e.preventDefault(); eccPlay(act.id); });
-    finishGame(`ECC L${act.lesson} p.${act.page} ${act.ja}`, score, total, `${act.ja}、できたね！`);
+    finishGame(`ECC L${act.lesson} p.${act.page} ${act.ja}`, score, total, `${act.ja}、できたね！`, `ecc:${act.id}`);
   }
   const eccHead = (act) => topbar(act.ja, "game/ecc", `Lesson ${act.lesson}　p.${act.page}`);
   const eccAsk = (act, icon) => `<button class="ask" id="ask"><span class="ask-emoji">${icon}</span><span><b>${esc(act.jaInst)}</b><small>${esc(act.en)}</small></span></button>`;

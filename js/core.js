@@ -192,6 +192,7 @@
       this.box.classList.remove("acting");
       document.body.classList.remove("clear-on");
       this.stage.classList.remove("show");
+      const sp = document.getElementById("stampPop"); if (sp) { sp.classList.remove("show"); sp.innerHTML = ""; }
       this.act.pause();
       this.current = null;
     },
