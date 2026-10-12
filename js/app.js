@@ -132,7 +132,7 @@
       $("#next").disabled = i === pages.length - 1;
       history.replaceState(null, "", "#/story/" + i);
       if (speak) await Speech.say(p.ja, p.en, { el: $("#stext") });
-      if (i === pages.length - 1) {
+      if (speak && i === pages.length - 1) {
         Log.record({ phase: "①ストーリー", item: "I Want（おはなし）", result: seen.size === pages.length ? "さいごまで" : "とちゅうから", seconds: Timer.sec() });
         await wait(300);
         Cheer.play("clear", "おはなし さいごまで きけたね！");
@@ -495,13 +495,24 @@
     return `<span class="len-row ${on ? "" : "dim"}">${A.wrap(svg, "0 0 260 50")}</span>`;
   }
 
+  // 「もういちど きく」ボタン（ききのがしたとき用）
+  function withReplay(play) {
+    const ask = $("#ask"); if (!ask || ask.parentNode.classList.contains("ask-row")) return;
+    const row = document.createElement("div"); row.className = "ask-row";
+    ask.parentNode.insertBefore(row, ask); row.appendChild(ask);
+    const b = document.createElement("button"); b.className = "replay"; b.type = "button"; b.setAttribute("aria-label", "もういちど きく");
+    b.innerHTML = `<span>🔁</span><small>もういちど<br>きく</small>`;
+    b.addEventListener("click", () => { b.classList.remove("pulse"); void b.offsetWidth; b.classList.add("pulse"); play(); });
+    row.appendChild(b);
+  }
+
   // ---------- 問題を すすめる しくみ（えらぶ／じゅんばんに タップ） ----------
   function runQuiz(game, lv, qs) {
     Timer.start();
     let n = 0, score = 0;
     const draw = () => {
       const q = qs[n]; let tries = 0;
-      view().innerHTML = `${topbar(game.ja, "game/" + game.id, STARS(lv))}
+      view().innerHTML = `${topbar(game.ja, game.back || "game/" + game.id, game.sub || STARS(lv))}
         <section class="quiz">
           <div class="q-head"><span class="q-num">${n + 1} / ${qs.length}</span><span class="stars">${"★".repeat(score)}${"☆".repeat(qs.length - score)}</span></div>
           <button class="ask ${q.big ? "big" : ""}" id="ask"><span class="ask-emoji">🔈</span><span><b>${esc(q.title)}</b><small>${esc(q.sub || "")}</small></span></button>
@@ -510,7 +521,7 @@
           <div class="opts cols-${q.cols || 3} ${q.optClass || ""}">${q.options.map((o) => `<button class="opt ${o.cls || ""}" data-id="${esc(o.id)}">${o.html}</button>`).join("")}</div>
         </section>`;
       const play = () => Speech.say(q.speak.ja || null, q.speak.en, { el: $("#ask"), bubble: q.bubble, enOnly: q.speak.enOnly });
-      $("#ask").onclick = play; setTimeout(play, 250);
+      $("#ask").onclick = play; withReplay(play); setTimeout(play, 250);
       const done = async (el) => {
         if (tries === 0) score++;
         Stats.mark(q.wordId, tries === 0);
@@ -547,7 +558,7 @@
         }));
       }
     };
-    const finish = () => finishLevel(game, lv, score, qs.length);
+    const finish = () => (game.onFinish ? game.onFinish(score, qs.length) : finishLevel(game, lv, score, qs.length));
     draw();
   }
 
@@ -569,8 +580,10 @@
   }
 
   routes.game = (id, lvArg) => {
+    if (id === "ecc") return lvArg ? eccPlay(lvArg) : eccMenu();
     if (!id) {
       view().innerHTML = `${topbar("ゲームで あそぼう", "kids", "Games")}
+        ${gameTabs("orig")}
         <section class="menu-grid">${GAMES.map((g) => `<a class="menu-card ${g.special ? "special" : ""}" href="#/game/${g.id}"><span class="mc-art">${A.render(g.icon)}</span><b>${g.ja}</b><small>${g.en}</small><span class="lv-badge">${STARS(Levels.get(g.id))}</span></a>`).join("")}</section>`;
       Cheer.say("Let's play a game!", "どの ゲームに する？");
       return;
@@ -640,7 +653,7 @@
       const intro = () => w
         ? Speech.say(`${w.ja}。さいしょの もじを さがそう`, w.label, { el: $("#ask"), bubble: [w.label, "さいしょの もじは？"] })
         : Speech.say(`おおきい ${L} と ちいさい ${l} を さがそう`, `Find ${L}.`, { el: $("#ask") });
-      $("#ask").onclick = intro; intro();
+      $("#ask").onclick = intro; withReplay(intro); intro();
       $$(".tile").forEach((t) => t.addEventListener("click", async () => {
         if (t.classList.contains("got")) return;
         if (t.dataset.c.toUpperCase() === L) {
@@ -699,7 +712,7 @@
         <p class="progress"><span id="cnt">0</span> / ${N}</p>
       </section>`;
     const intro = () => Speech.say(`${seq[0]} から じゅんばんに つなごう`, `Connect ${seq[0]} to ${seq[N - 1]}.`, { el: $("#ask") });
-    $("#ask").onclick = intro; intro();
+    $("#ask").onclick = intro; withReplay(intro); intro();
     const mark = () => $$(".target").forEach((g) => g.classList.toggle("next", lv === 1 && +g.dataset.k === next));
     mark();
     $$(".dd", $("#dsvg")).forEach((g) => g.addEventListener("click", async () => {
@@ -743,7 +756,7 @@
         </div>
       </section>`;
     const intro = () => Speech.say(lv < 3 ? "おおきい もじと ちいさい もじを つなごう" : "ことばと えを つなごう", lv < 3 ? "Match the letters." : "Match the words and pictures.", { el: $("#ask") });
-    $("#ask").onclick = intro; intro();
+    $("#ask").onclick = intro; withReplay(intro); intro();
     const pairs = [];
     const COLORS = ["#C2357A", "#3E7CC9", "#4FA35B", "#F2994A", "#B48AD6", "#2BB3A3", "#E0B000"];
     const redraw = () => {
@@ -776,6 +789,393 @@
     }));
   }
 
+
+  // =============================================================
+  //  ECC：いただいた ワークブック（Lesson 23〜30, p.45〜60）を 1ページずつ 再現
+  //  ※ 文字の ならび・えらびし は 教材と おなじ。
+  //    CDの 音声で 答えが きまる もんだいは、毎回 ランダムに 1つを 読みあげます。
+  // =============================================================
+  const ECC = [
+    { id: "l23-o", lesson: 23, page: 45, type: "find", ja: "タコと O さがし", en: "Help the octopus find eight O's.", jaInst: "タコさんと いっしょに O を 8つ さがそう", letter: "O", theme: "🐙", cols: 6,
+      tiles: "O c T o P u S e S i K e C t O e S I E o S o C t O p U O s p U i I O s K s".split(" ") },
+    { id: "l23-p", lesson: 23, page: 45, type: "find", ja: "もも の P さがし", en: "Circle all the peaches with a big P or a little p.", jaInst: "P と p の ももを ぜんぶ さがそう", letter: "P", theme: "🍑", cols: 5,
+      tiles: "P d p E a e A P q p H c p P h".split(" ") },
+    { id: "l23-story", lesson: 23, page: 46, type: "rows", ja: "Story Phrases", en: "Circle the correct pictures.", jaInst: "きこえた えを えらぼう",
+      rows: [["birthday", "jumprope", "bag"], ["train", "book", "bike"], ["bike", "train", "birthday"], ["bag", "doll", "robot"], ["bike", "book", "bag"], ["jumprope", "doll", "robot"], ["doll", "book", "jumprope"], ["robot", "birthday", "train"]]
+        .map((r) => r.map((w) => { const c = D.sections[0].cards.find((x) => x.id === w); return { id: w, art: c.art, en: c.en, ja: c.ja }; })) },
+    { id: "l24-q", lesson: 24, page: 47, type: "dots", ja: "じょおうさまの かんむり（Q）", en: "Connect the big Q's to the little q's to complete the queen's crown.", jaInst: "Q と q を つないで かんむりを かんせいさせよう", letter: "Q", reveal: "👑", shape: "ring", n: 12, decoys: "O A U D S b r B a".split(" ") },
+    { id: "l24-r", lesson: 24, page: 47, type: "find", ja: "うさぎの R さがし", en: "Circle all the rabbits with a big R or a little r.", jaInst: "R と r の うさぎを ぜんぶ さがそう", letter: "R", theme: "🐰", cols: 8,
+      tiles: "r B r E t E p T I b B a r R E g o R y E v R a H".split(" ") },
+    { id: "l24-shapes", lesson: 24, page: 48, type: "shapes", ja: "Shapes（かたち あわせ）", en: "Connect the matching shapes.", jaInst: "ふくろから みえている かたちと おなじ かたちを つなごう",
+      left: ["rectangle", "star", "circle", "square", "triangle", "heart", "diamond"], right: ["circle", "diamond", "heart", "rectangle", "square", "star", "triangle"] },
+    { id: "l25-s", lesson: 25, page: 49, type: "dots", ja: "たいようの え（S）", en: "Connect the big S's to the little s's to complete the picture.", jaInst: "S と s を つないで たいようを かんせいさせよう", letter: "S", reveal: "☀️", shape: "ring", n: 16, decoys: "E W r q D p X o C n m Y I B k Z j i A".split(" ") },
+    { id: "l25-t", lesson: 25, page: 49, type: "race", ja: "カメと うさぎの きょうそう（T）", en: "The turtle and the rabbit are going to race. Connect the big T's to the little t's to find the winner.", jaInst: "T と t を じゅんばんに つないで、かったのは どっち？",
+      rowsRace: [{ who: "🐰", name: "rabbit", ja: "うさぎ", letters: "T t T t T t T r F e S a N k".split(" ") }, { who: "🐢", name: "turtle", ja: "カメ", letters: "T t T t T t T t T t T t T t T t".split(" ") }] },
+    { id: "l25-opp", lesson: 25, page: 50, type: "opp", ja: "Opposites（はんたいの ことば）", en: "Circle the answer.", jaInst: "こたえを えらぼう" },
+    { id: "l26-u", lesson: 26, page: 51, type: "find", ja: "かさの U さがし", en: "Circle all the umbrellas with a big U or a little u.", jaInst: "U と u の かさを ぜんぶ さがそう", letter: "U", theme: "☂️", cols: 4,
+      tiles: "u U m U K u V u W o V".split(" ") },
+    { id: "l26-v", lesson: 26, page: 51, type: "dots", ja: "バイオリンの げん（V）", en: "The violin is missing two strings. Connect the big V's to the little v's to complete the violin.", jaInst: "V と v を つないで バイオリンの げんを 2ほん つくろう", letter: "V", reveal: "🎻", shape: "twoRows", n: 16, decoys: [] },
+    { id: "l26-time", lesson: 26, page: 52, type: "time", ja: "Time（じかん あわせ）", en: "Connect the pictures.", jaInst: "きこえた じかんの とけいを えらぼう", hours: [1, 3, 5, 7, 9, 11] },
+    { id: "l27-w", lesson: 27, page: 53, type: "find", ja: "すいかの W さがし", en: "Circle all the watermelons with a big W or a little w.", jaInst: "W と w の すいかを ぜんぶ さがそう", letter: "W", theme: "🍉", cols: 7,
+      tiles: "V N m W c V w U w Z x W u M W o T w A p S h W f D g M w".split(" ") },
+    { id: "l27-x", lesson: 27, page: 53, type: "find", ja: "レントゲンの X さがし", en: "Circle all the x-rays with a big X or a little x.", jaInst: "X と x の レントゲンを ぜんぶ さがそう", letter: "X", theme: "🩻", cols: 5, dark: true,
+      tiles: "x W e X t C x M n X u X x Z y V x N w X".split(" ") },
+    { id: "l27-family", lesson: 27, page: 54, type: "family", ja: "Family and Friends（かげ あわせ）", en: "Connect the matching characters.", jaInst: "かげと おなじ ひとを つなごう",
+      left: ["mother", "sister", "father", "brother", "girl", "grandfather", "grandmother"] },
+    { id: "l28-y", lesson: 28, page: 55, type: "find", ja: "けいとの Y さがし", en: "Circle all the balls of yarn with a big Y or a little y.", jaInst: "Y と y の けいとを ぜんぶ さがそう", letter: "Y", theme: "🧶", cols: 6,
+      tiles: "V w Y u K Y y M y T y X Y V L y V".split(" ") },
+    { id: "l28-z", lesson: 28, page: 55, type: "dots", ja: "シマウマの めいろ（Z）", en: "Help the zebra find his mother. Connect the big Z's to the little z's.", jaInst: "Z と z を つないで おかあさんの ところへ いこう", letter: "Z", reveal: "🦓", shape: "maze", n: 16, decoys: "Y X N m S a R e W q j K L G D h b".split(" ") },
+    { id: "l28-review", lesson: 28, page: 56, type: "rows", ja: "Review（ふくしゅう）", en: "Circle the correct pictures.", jaInst: "きこえた えを えらぼう", review: true },
+    { id: "l29-ai", lesson: 29, page: 57, type: "letters", ja: "A〜I おおもじと こもじ", en: "Connect the big letters to the little letters.", jaInst: "おおきい もじと ちいさい もじを つなごう", left: "A B C D E F G H I".split(" "), right: "g a f h e i b c d".split(" ") },
+    { id: "l29-quiz", lesson: 29, page: 58, type: "quiztime", ja: "Quiz Time!", en: "Choose the correct answer.", jaInst: "ただしい こたえを えらぼう" },
+    { id: "l30-jr", lesson: 30, page: 59, type: "letters", ja: "J〜R おおもじと こもじ", en: "Connect the big letters to the little letters.", jaInst: "おおきい もじと ちいさい もじを つなごう", left: "J K L M N O P Q R".split(" "), right: "r l k q p j n m o".split(" ") },
+    { id: "l30-review", lesson: 30, page: 60, type: "objects", ja: "Review（8つ みつけよう）", en: "Circle the 8 objects that are identified.", jaInst: "きこえた ものを 8つ みつけよう" }
+  ];
+  const eccById = (id) => ECC.find((x) => x.id === id);
+  window.__ECC = ECC;
+
+  function eccMenu() {
+    const lessons = [...new Set(ECC.map((a) => a.lesson))];
+    view().innerHTML = `${topbar("ゲームで あそぼう", "kids", "Games")}
+      ${gameTabs("ecc")}
+      <section class="ecc-list">
+        <p class="ecc-note">ECCの ワークブック（Lesson 23〜30）の ページを そのまま ゲームに しました。</p>
+        ${lessons.map((l) => `<div class="ecc-lesson"><h3>Lesson ${l}</h3><div class="ecc-cards">${ECC.filter((a) => a.lesson === l).map((a) => `<a class="ecc-card" href="#/game/ecc/${a.id}"><span class="pg">p.${a.page}</span><b>${esc(a.ja)}</b><small>${esc(a.en)}</small></a>`).join("")}</div></div>`).join("")}
+      </section>`;
+    Cheer.say("ECC games!", "どの ページで あそぶ？");
+  }
+  function gameTabs(cur) {
+    return `<div class="game-tabs" role="tablist"><a href="#/game" class="${cur === "orig" ? "on" : ""}" role="tab">オリジナル</a><a href="#/game/ecc" class="${cur === "ecc" ? "on" : ""}" role="tab">ECC</a></div>`;
+  }
+  function eccFinish(act, score, total) {
+    view().innerHTML = `${topbar("けっか", "game/ecc", `Lesson ${act.lesson}　p.${act.page}`)}
+      <section class="result"><p class="big-stars">${"★".repeat(Math.min(score, 12))}<span>${"★".repeat(Math.max(0, Math.min(total, 12) - Math.min(score, 12)))}</span></p>
+      <h2>${score} / ${total}</h2><p>${score === total ? "ぜんぶ できたね！" : "よく がんばったね！"}</p>
+      <div class="result-btns"><a class="btn primary" href="#/game/ecc/${act.id}" data-again>もういちど</a><a class="btn" href="#/game/ecc">ECC の いちらん</a></div></section>`;
+    $("[data-again]").addEventListener("click", (e) => { e.preventDefault(); eccPlay(act.id); });
+    finishGame(`ECC L${act.lesson} p.${act.page} ${act.ja}`, score, total, `${act.ja}、できたね！`);
+  }
+  const eccHead = (act) => topbar(act.ja, "game/ecc", `Lesson ${act.lesson}　p.${act.page}`);
+  const eccAsk = (act, icon) => `<button class="ask" id="ask"><span class="ask-emoji">${icon}</span><span><b>${esc(act.jaInst)}</b><small>${esc(act.en)}</small></span></button>`;
+
+  function eccPlay(id) {
+    const act = eccById(id);
+    if (!act) return go("game/ecc");
+    Timer.start();
+    ({ find: eccFind, rows: eccRows, dots: eccDots, race: eccRace, opp: eccOpp, shapes: eccShapes, time: eccTime, family: eccFamily, letters: eccLetters, quiztime: eccQuizTime, objects: eccObjects })[act.type](act);
+  }
+
+  // もじ さがし（教材と おなじ 文字の ならび）
+  function eccFind(act) {
+    const L = act.letter, l = L.toLowerCase();
+    const total = act.tiles.filter((c) => c.toUpperCase() === L).length;
+    let got = 0, miss = 0;
+    view().innerHTML = `${eccHead(act)}
+      <section class="hunt">
+        ${eccAsk(act, act.theme)}
+        <div class="tiles ecc-tiles ${act.dark ? "dark" : ""}" style="grid-template-columns:repeat(${act.cols},1fr)">${act.tiles.map((c) => `<button class="tile themed" data-c="${c}" style="--r:${randInt(-6, 6)}deg"><span class="t-emoji">${act.theme}</span><b>${c}</b></button>`).join("")}</div>
+        <p class="progress"><span id="found">0</span> / ${total}</p>
+      </section>`;
+    const intro = () => Speech.say(act.jaInst, act.en, { el: $("#ask"), bubble: [`Find ${L} and ${l}!`, act.jaInst] });
+    $("#ask").onclick = intro; withReplay(intro); intro();
+    $$(".tile").forEach((t) => t.addEventListener("click", async () => {
+      if (t.classList.contains("got")) return;
+      if (t.dataset.c.toUpperCase() === L) {
+        t.classList.add("got"); got++; $("#found").textContent = got;
+        bump(t, true); Cheer.play("correct", pick(Cheer.LINES.correct));
+        Speech.en(t.dataset.c === L ? `big ${L}` : `little ${l}`, { noBubble: true });
+        if (got === total) { await wait(900); eccFinish(act, Math.max(0, total - miss), total); }
+      } else { miss++; bump(t, false); Speech.en(t.dataset.c, { noBubble: true }); }
+    }));
+  }
+
+  // きいて えらぶ（Story Phrases / Review p.56）：えらびしは 教材と おなじ、こたえは 毎回 ランダム
+  function eccRows(act) {
+    let rows = act.rows;
+    if (act.review) {
+      const F = (w) => ({ id: "f-" + w, art: "face:" + w, en: w === "sam" ? "friend Sam" : w, ja: { father: "おとうさん", mother: "おかあさん", brother: "おにいさん", sister: "おねえさん", grandfather: "おじいさん", grandmother: "おばあさん", sam: "ともだちの サム" }[w] });
+      const I = (w) => { const c = D.sections[0].cards.find((x) => x.id === w); return { id: w, art: c.art, en: c.en, ja: c.ja }; };
+      const SH = (w, ja) => ({ id: "s-" + w, art: "shape:" + w, en: "a " + w, ja });
+      const CL = (h, w) => ({ id: "c" + h, art: "clock:" + h, en: w + " o'clock", ja: h + "じ" });
+      const OP = (w, ja) => ({ id: "o-" + w, art: "opp:" + w, en: w, ja });
+      rows = [[I("robot"), I("train"), I("bag")], [SH("triangle", "さんかく"), SH("square", "しかく"), SH("circle", "まる")], [OP("big", "おおきい"), OP("little", "ちいさい"), OP("long", "ながい")],
+        [CL(3, "three"), CL(4, "four"), CL(6, "six")], [F("grandfather"), F("grandmother"), F("sister")], [I("jumprope"), I("bike"), I("book")],
+        [SH("star", "ほし"), SH("heart", "ハート"), SH("diamond", "ひしがた")], [F("mother"), F("brother"), F("sam")]];
+    }
+    const qs = rows.map((r, i) => {
+      const ans = pick(r);
+      return {
+        title: `${i + 1}. ${act.en}`, sub: act.jaInst, big: true,
+        speak: { en: ans.en, enOnly: true }, bubble: ["Listen!", "よく きいてね"], replayOnWrong: true,
+        options: r.map((x) => ({ id: x.id, html: A.render(x.art) })), answer: ans.id, cols: 3,
+        after: { ja: ans.ja, en: ans.en }
+      };
+    });
+    runQuiz({ ja: act.ja, id: act.id, back: "game/ecc", sub: `Lesson ${act.lesson}　p.${act.page}`, onFinish: (s, t) => eccFinish(act, s, t) }, 1, qs);
+  }
+
+  // てん つなぎ（教材の え：かんむり・たいよう・バイオリン・シマウマの めいろ）
+  function eccDots(act) {
+    const L = act.letter, l = L.toLowerCase(), N = act.n;
+    const pts = [];
+    if (act.shape === "ring") {
+      for (let k = 0; k < N; k++) { const a = (k / N) * Math.PI * 2 - Math.PI / 2; pts.push([180 + Math.cos(a) * 112, 180 + Math.sin(a) * 112]); }
+    } else if (act.shape === "twoRows") {
+      for (let k = 0; k < N / 2; k++) pts.push([40 + k * 40, 150]);
+      for (let k = 0; k < N / 2; k++) pts.push([40 + k * 40, 215]);
+    } else {
+      [[40, 70], [88, 62], [136, 70], [184, 62], [232, 78], [272, 112], [236, 146], [188, 150], [140, 160], [96, 186], [86, 234], [128, 262], [176, 276], [224, 284], [272, 292], [320, 300]].forEach((p) => pts.push(p));
+    }
+    const lab = (k) => (k % 2 ? l : L);
+    const decoys = [];
+    act.decoys.forEach((c, k) => {
+      let p, g = 0;
+      do {
+        if (act.shape === "ring") { const a = Math.random() * Math.PI * 2, r = 155 + Math.random() * 20; p = [180 + Math.cos(a) * r, 180 + Math.sin(a) * r]; }
+        else p = [24 + Math.random() * 312, 24 + Math.random() * 312];
+        g++;
+      } while (g < 300 && (p[0] < 20 || p[0] > 340 || p[1] < 20 || p[1] > 340 || pts.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 46) || decoys.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 40)));
+      decoys.push(p.concat(c));
+    });
+    let next = 0, miss = 0;
+    const startEnd = act.shape === "maze" ? `<text x="8" y="40" font-size="34">🦓</text><text x="318" y="350" font-size="40">🦓</text>` : "";
+    const revealPos = act.shape === "twoRows" ? [180, 95] : act.shape === "maze" ? [180, 330] : [180, 195];
+    view().innerHTML = `${eccHead(act)}
+      <section class="dots">
+        ${eccAsk(act, act.reveal)}
+        <div class="dot-board"><svg viewBox="0 0 360 360" id="dsvg">
+          ${act.shape === "twoRows" ? `<path d="M20 110 C20 60 120 70 150 100 C175 80 185 80 210 100 C240 70 340 60 340 110 L340 250 C340 300 240 290 210 260 C185 280 175 280 150 260 C120 290 20 300 20 250Z" fill="#FFF6E6" stroke="#D9B98A" stroke-width="3"/>` : ""}
+          <g id="lines"></g>
+          <g class="reveal" id="reveal"><text x="${revealPos[0]}" y="${revealPos[1] + 30}" text-anchor="middle" font-size="${act.shape === "ring" ? 100 : 64}">${act.shape === "maze" ? "🦓❤️" : act.reveal}</text></g>
+          ${startEnd}
+          ${decoys.map((d) => `<g class="dd decoy" transform="translate(${d[0]} ${d[1]})"><circle r="19"/><text y="8">${d[2]}</text></g>`).join("")}
+          ${pts.map((p, k) => `<g class="dd target" data-k="${k}" transform="translate(${p[0]} ${p[1]})"><circle r="19"/><text y="8">${lab(k)}</text></g>`).join("")}
+        </svg></div>
+        <p class="progress"><span id="cnt">0</span> / ${N}</p>
+      </section>`;
+    const intro = () => Speech.say(act.jaInst, act.en, { el: $("#ask"), bubble: [`Connect ${L} and ${l}!`, act.jaInst] });
+    $("#ask").onclick = intro; withReplay(intro); intro();
+    const mark = () => $$(".target").forEach((g) => g.classList.toggle("next", +g.dataset.k === next));
+    mark();
+    $$(".dd", $("#dsvg")).forEach((g) => g.addEventListener("click", async () => {
+      if (g.classList.contains("target") && +g.dataset.k === next) {
+        g.classList.add("done");
+        const newRow = act.shape === "twoRows" && next === N / 2;
+        if (next > 0 && !newRow) { const a = pts[next - 1], b = pts[next]; $("#lines").insertAdjacentHTML("beforeend", `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`); }
+        Speech.en(next % 2 ? `little ${l}` : `big ${L}`, { noBubble: true });
+        next++; $("#cnt").textContent = next; mark();
+        if (next % 4 === 0) Cheer.play("correct", pick(Cheer.LINES.correct));
+        if (next === N) {
+          if (act.shape === "ring") { const a = pts[N - 1], b = pts[0]; $("#lines").insertAdjacentHTML("beforeend", `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`); }
+          $("#reveal").classList.add("show");
+          await wait(700);
+          eccFinish(act, Math.max(0, N - miss), N);
+        }
+      } else if (!g.classList.contains("done")) { miss++; bump(g, false); Speech.en($("text", g).textContent, { noBubble: true }); }
+    }));
+  }
+
+  // カメと うさぎの きょうそう：T t を じゅんばんに たどる。うさぎの みちは とちゅうで おわる
+  function eccRace(act) {
+    const prog = [0, 0], dead = [false, false];
+    let miss = 0;
+    view().innerHTML = `${eccHead(act)}
+      <section class="race">
+        ${eccAsk(act, "🏁")}
+        ${act.rowsRace.map((r, ri) => `<div class="race-row" data-r="${ri}"><span class="who">${r.who}</span><div class="race-track">${r.letters.map((c, k) => `<button class="rl" data-r="${ri}" data-k="${k}">${c}</button>`).join("")}</div><span class="goal">🏁</span></div>`).join("")}
+        <p class="race-msg" id="raceMsg"></p>
+      </section>`;
+    const intro = () => Speech.say(act.jaInst, act.en, { el: $("#ask"), bubble: ["Who wins?", "T と t を たどってね"] });
+    $("#ask").onclick = intro; withReplay(intro); intro();
+    $$(".rl").forEach((b) => b.addEventListener("click", async () => {
+      const ri = +b.dataset.r, k = +b.dataset.k, row = act.rowsRace[ri];
+      if (dead[ri] || b.classList.contains("done")) return;
+      if (k !== prog[ri]) { bump(b, false); miss++; Cheer.say("Step by step!", "ひだりから じゅんばんに たどってね"); return; }
+      const c = row.letters[k];
+      if (c.toUpperCase() === "T") {
+        b.classList.add("done"); prog[ri]++;
+        Speech.en(c === "T" ? "big T" : "little t", { noBubble: true });
+        if (prog[ri] === row.letters.length) {
+          $("#raceMsg").textContent = `${row.who} ${row.ja}の かち！`;
+          Cheer.play("correct", "Goal!");
+          await Speech.say(`${row.ja}の かち！`, `The ${row.name} wins!`);
+          eccFinish(act, 1, 1);
+        }
+      } else {
+        dead[ri] = true; b.classList.add("stop");
+        $(`.race-row[data-r="${ri}"]`).classList.add("dead");
+        $("#raceMsg").textContent = `${row.who} ${row.ja}の みちは ここで おわり…`;
+        Cheer.say("Oh no!", `${row.ja}の みちは とまっちゃった`);
+        Speech.say(`${row.ja}の みちは ここで おわり`, `${c}! Oh no!`, { noBubble: true });
+      }
+    }));
+  }
+
+  // Opposites p.50（教材と おなじ 4もん）
+  function eccOpp(act) {
+    const R = (k) => A.render("item:" + k);
+    const pic = (big, small, hiBig) => `<div class="opp-pic size"><span class="o-big ${hiBig ? "" : "dim"}">${big}</span><span class="o-small ${hiBig ? "dim" : ""}">${small}</span></div>`;
+    const qs = [
+      { q: "Is it long or short?", ja: "ながい？ みじかい？", vis: `<div class="opp-pic len">${lenArt(8, false)}${lenArt(1, true)}</div>`, ans: "short", choices: ["long", "short"] },
+      { q: "Is it big or little?", ja: "おおきい？ ちいさい？", vis: pic(R("robot"), R("robot"), true), ans: "big", choices: ["big", "little"] },
+      { q: "Is it big or little?", ja: "おおきい？ ちいさい？", vis: pic(R("doll"), R("doll"), false), ans: "little", choices: ["big", "little"] },
+      { q: "Is it long or short?", ja: "ながい？ みじかい？", vis: `<div class="opp-pic len">${ropeArt(false, false)}${ropeArt(true, true)}</div>`, ans: "long", choices: ["long", "short"] }
+    ];
+    const WORD = { big: "おおきい", little: "ちいさい", long: "ながい", short: "みじかい" };
+    runQuiz({ ja: act.ja, id: act.id, back: "game/ecc", sub: `Lesson ${act.lesson}　p.${act.page}`, onFinish: (s, t) => eccFinish(act, s, t) }, 1, qs.map((x, i) => ({
+      title: `${i + 1}. ${x.q}`, sub: "いろの ついた ほうを みてね", speak: { en: x.q, enOnly: true }, bubble: [x.q, x.ja],
+      visual: x.vis, options: x.choices.map((c) => ({ id: c, html: `<b>${c}</b><small>${WORD[c]}</small>`, cls: "word" })), answer: x.ans, cols: 2,
+      after: { ja: WORD[x.ans] + "よ。", en: `It's ${x.ans}.` }
+    })));
+  }
+  function ropeArt(long, on) {
+    const d = long ? "M20 20 C40 120 160 120 180 20" : "M70 20 C80 52 120 52 130 20";
+    return `<span class="len-row ${on ? "" : "dim"}">${A.wrap(`<path d="${d}" fill="none" stroke="#F2994A" stroke-width="${on ? 9 : 5}"/><rect x="${long ? 10 : 60}" y="6" width="18" height="26" rx="7" fill="#E2603F"/><rect x="${long ? 172 : 122}" y="6" width="18" height="26" rx="7" fill="#3E7CC9"/>`, "0 0 200 110")}</span>`;
+  }
+
+  // つなぐ（Shapes p.48 / Family p.54 / A〜I p.57 / J〜R p.59）：教材と おなじ ならび
+  function eccConnect(act, left, right, opts) {
+    let sel = null, done = 0, miss = 0;
+    view().innerHTML = `${eccHead(act)}
+      <section class="match">
+        ${eccAsk(act, opts.icon)}
+        <div class="match-board ${opts.cls || ""}" id="mb">
+          <svg class="match-lines" id="ml"></svg>
+          <div class="col left">${left.map((x, i) => `<button class="lt" data-k="${esc(x.key)}"><span class="num">${i + 1}</span>${x.html}</button>`).join("")}</div>
+          <div class="col right">${right.map((x) => `<button class="lt" data-k="${esc(x.key)}">${x.html}</button>`).join("")}</div>
+        </div>
+      </section>`;
+    const intro = () => Speech.say(act.jaInst, act.en, { el: $("#ask") });
+    $("#ask").onclick = intro; withReplay(intro); intro();
+    const pairs = [], COLORS = ["#C2357A", "#3E7CC9", "#4FA35B", "#F2994A", "#B48AD6", "#2BB3A3", "#E0B000", "#8D5A2B", "#E53935"];
+    const redraw = () => {
+      const mb = $("#mb"); if (!mb) return;
+      const box = mb.getBoundingClientRect(), svg = $("#ml");
+      svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+      svg.innerHTML = pairs.map(([a, b], k) => { const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return `<line x1="${ra.right - box.left}" y1="${ra.top + ra.height / 2 - box.top}" x2="${rb.left - box.left}" y2="${rb.top + rb.height / 2 - box.top}" stroke="${COLORS[k % COLORS.length]}"/>`; }).join("");
+    };
+    const onResize = () => { if (!document.body.contains($("#mb"))) return window.removeEventListener("resize", onResize); redraw(); };
+    window.addEventListener("resize", onResize);
+    $$(".left .lt").forEach((b) => b.addEventListener("click", () => {
+      if (b.classList.contains("done")) return;
+      $$(".left .lt").forEach((x) => x.classList.remove("sel")); b.classList.add("sel"); sel = b;
+      const x = left.find((y) => y.key === b.dataset.k); if (x.say) Speech.en(x.say, { noBubble: true });
+    }));
+    $$(".right .lt").forEach((b) => b.addEventListener("click", async () => {
+      if (b.classList.contains("done")) return;
+      if (!sel) { bump(b, false); Cheer.say("Choose on the left!", "さきに ひだりから えらんでね"); return; }
+      if (sel.dataset.k === b.dataset.k) {
+        sel.classList.remove("sel"); sel.classList.add("done"); b.classList.add("done");
+        pairs.push([sel, b]); redraw(); done++;
+        Cheer.play("correct", pick(Cheer.LINES.correct));
+        const r = right.find((y) => y.key === b.dataset.k); if (r.after) Speech.say(r.after[0], r.after[1], { noBubble: true });
+        sel = null;
+        if (done === left.length) { await wait(900); eccFinish(act, Math.max(0, left.length - miss), left.length); }
+      } else { miss++; bump(b, false); }
+    }));
+  }
+  const SHAPE_JA = { circle: "まる", diamond: "ひしがた", heart: "ハート", rectangle: "ながしかく", square: "しかく", star: "ほし", triangle: "さんかく" };
+  function eccShapes(act) {
+    // ふくろから かたちが すこし みえている え
+    const peek = (s) => A.wrap(`<g transform="translate(60 30) scale(.62)">${A.shape(s, { sw: 13 })}</g><g><path d="M14 70 C14 40 70 40 70 70" fill="none" stroke="#3B2A3F" stroke-width="5"/><path d="M6 66 L108 66 L118 186 L0 186Z" fill="#F6E7D0" stroke="#3B2A3F" stroke-width="5" stroke-linejoin="round"/><path d="M30 90 l10 30 M60 96 l-6 30" stroke="#C9A97A" stroke-width="4"/></g>`, "0 0 200 200");
+    eccConnect(act, act.left.map((s) => ({ key: s, html: peek(s) })), act.right.map((s) => ({ key: s, html: A.wrap(A.shape(s, { sw: 13 }), "0 0 200 200"), after: [SHAPE_JA[s], "a " + s] })), { icon: "👜", cls: "pics" });
+  }
+  const FAM = { father: ["おとうさん", "father"], mother: ["おかあさん", "mother"], brother: ["おにいさん", "brother"], sister: ["おねえさん", "sister"], grandfather: ["おじいさん", "grandfather"], grandmother: ["おばあさん", "grandmother"], girl: ["わたし", "me"] };
+  function eccFamily(act) {
+    const L = act.left.map((k) => ({ key: k, html: `<span class="sil-face">${A.render("face:" + k)}</span>` }));
+    const R = shuffle(act.left).map((k) => ({ key: k, html: A.render("face:" + k), after: [FAM[k][0], k === "girl" ? "It's me!" : `My ${FAM[k][1]}.`] }));
+    eccConnect(act, L, R, { icon: "👨‍👩‍👧‍👦", cls: "pics" });
+  }
+  function eccLetters(act) {
+    eccConnect(act, act.left.map((c) => ({ key: c, html: c, say: c })), act.right.map((c) => ({ key: c.toUpperCase(), html: c, after: [null, `${c.toUpperCase()}. ${c}.`] })), { icon: "🔤" });
+  }
+
+  // Time p.52：きこえた じかんの とけいを えらぶ（6つ）
+  function eccTime(act) {
+    const W = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+    const order = shuffle(act.hours);
+    const qs = order.map((h, i) => ({
+      title: `${i + 1}. What time is it?`, sub: "いま なんじ？", big: true,
+      speak: { en: `What time is it? It's ${W[h]} o'clock.`, enOnly: true }, bubble: ["What time is it?", "よく きいてね"], replayOnWrong: true,
+      options: act.hours.map((x) => ({ id: "h" + x, html: A.render("clock:" + x) })), answer: "h" + h, cols: 3,
+      after: { ja: h + "じ", en: `It's ${W[h]} o'clock.` }
+    }));
+    runQuiz({ ja: act.ja, id: act.id, back: "game/ecc", sub: `Lesson ${act.lesson}　p.${act.page}`, onFinish: (s, t) => eccFinish(act, s, t) }, 1, qs);
+  }
+
+  // Quiz Time! p.58：1〜4 は 3つの 文を きいて ばんごうを えらぶ／5・6 は えを えらぶ
+  function eccQuizTime(act) {
+    const NUM = ["one", "two", "three"];
+    const numbered = (pic, sents, ans) => {
+      const order = shuffle(sents.map((s, i) => ({ s, ok: i === 0 })));
+      return { pic, order, ansIdx: order.findIndex((x) => x.ok) };
+    };
+    const Q = [
+      numbered(`<div class="q-pic">${A.render("item:bike")}</div>`, ["I want a bike.", "I want a bag.", "I want a doll."]),
+      numbered(`<div class="opp-pic size">${`<span class="o-big">${A.render("item:book")}</span><span class="o-small dim">${A.render("item:book")}</span>`}</div>`, ["It's big.", "It's little."]),
+      numbered(`<div class="q-pic">${A.render("clock:8")}</div>`, ["It's eight o'clock.", "It's seven o'clock.", "It's nine o'clock."]),
+      numbered(`<div class="q-pic">${A.render("face:father")}</div>`, ["My father.", "My mother.", "My brother."])
+    ];
+    const qs = Q.map((q, i) => {
+      const spoken = q.order.map((x, k) => `Number ${NUM[k]}. ${x.s}`).join(" ");
+      return {
+        title: `${i + 1}. Choose the correct answer.`, sub: "1・2・3 の どれが ただしい？",
+        speak: { en: spoken, enOnly: true }, bubble: ["1, 2, or 3?", "よく きいてね"],
+        visual: q.pic, options: q.order.map((x, k) => ({ id: "n" + k, html: `<b class="opt-letter">${k + 1}</b>` })), answer: "n" + q.ansIdx, cols: q.order.length, optClass: "letters",
+        after: { ja: `${q.ansIdx + 1}ばん！`, en: q.order[q.ansIdx].s }
+      };
+    });
+    const shp = pick(["triangle", "circle", "square"]);
+    qs.push({ title: "5. Choose the correct picture.", sub: "ただしい えを えらぼう", big: true, speak: { en: `It's a ${shp}.`, enOnly: true }, bubble: ["Listen!", "よく きいてね"], replayOnWrong: true,
+      options: ["triangle", "circle", "square"].map((s) => ({ id: s, html: A.wrap(A.shape(s, { sw: 13 }), "0 0 200 200") })), answer: shp, cols: 3, after: { ja: SHAPE_JA[shp], en: `It's a ${shp}.` } });
+    const CMD = [["shake", "🙅", "Shake your head.", "くびを よこに ふろう"], ["nod", "🙆", "Nod your head.", "うなずこう"], ["cover", "🤭", "Cover your mouth.", "くちを おさえよう"]];
+    const cmd = pick(CMD);
+    qs.push({ title: "6. Choose the correct picture.", sub: "ただしい えを えらぼう", big: true, speak: { en: cmd[2], enOnly: true }, bubble: ["Listen!", "よく きいてね"], replayOnWrong: true,
+      options: CMD.map((c) => ({ id: c[0], html: A.render("emoji:" + c[1]) })), answer: cmd[0], cols: 3, after: { ja: cmd[3], en: cmd[2] } });
+    runQuiz({ ja: act.ja, id: act.id, back: "game/ecc", sub: `Lesson ${act.lesson}　p.${act.page}`, onFinish: (s, t) => eccFinish(act, s, t) }, 1, qs);
+  }
+
+  // Review p.60：たくさんの えの 中から、きこえた ものを 8つ みつける
+  function eccObjects(act) {
+    const BOARD1 = [["helmet", "ヘルメット", "emoji:⛑️"], ["clouds", "くも", "emoji:☁️"], ["microphone", "マイク", "emoji:🎤"], ["pencil", "えんぴつ", "emoji:✏️"], ["jump rope", "なわとび", "item:jumprope"],
+      ["goggles", "ゴーグル", "emoji:🥽"], ["sun", "たいよう", "emoji:☀️"], ["coat", "コート", "emoji:🧥"], ["horses", "うま", "emoji:🐎"], ["rain", "あめ", "emoji:🌧️"], ["dress", "ワンピース", "emoji:👗"],
+      ["swimsuit", "みずぎ", "emoji:🩱"], ["gloves", "てぶくろ", "emoji:🧤"], ["shorts", "はんズボン", "emoji:🩳"], ["seal", "アザラシ", "emoji:🦭"], ["dog", "いぬ", "emoji:🐕"], ["cat", "ねこ", "emoji:🐈"],
+      ["rabbits", "うさぎ", "emoji:🐇"], ["elephant", "ぞう", "emoji:🐘"], ["jeans", "ジーンズ", "emoji:👖"], ["penguins", "ペンギン", "emoji:🐧"], ["socks", "くつした", "emoji:🧦"]];
+    const BOARD2 = [["a circle", "まる", "shape:circle"], ["twelve o'clock", "12じ", "clock:12"], ["a diamond", "ひしがた", "shape:diamond"], ["brother", "おにいさん", "face:brother"], ["a heart", "ハート", "shape:heart"],
+      ["eight o'clock", "8じ", "clock:8"], ["two o'clock", "2じ", "clock:2"], ["mother", "おかあさん", "face:mother"], ["four o'clock", "4じ", "clock:4"], ["long", "ながい", "opp:long"], ["sister", "おねえさん", "face:sister"],
+      ["big", "おおきい", "opp:big"], ["eleven o'clock", "11じ", "clock:11"], ["grandfather", "おじいさん", "face:grandfather"], ["father", "おとうさん", "face:father"], ["a square", "しかく", "shape:square"],
+      ["a star", "ほし", "shape:star"], ["a triangle", "さんかく", "shape:triangle"], ["grandmother", "おばあさん", "face:grandmother"]];
+    let board = 1, found = 0, miss = 0, targets = [], ti = 0;
+    const draw = () => {
+      const items = board === 1 ? BOARD1 : BOARD2;
+      targets = sample(items, 4); ti = 0;
+      view().innerHTML = `${eccHead(act)}
+        <section class="objects">
+          ${eccAsk(act, "🔎")}
+          <p class="board-no">${board} / 2</p>
+          <div class="obj-board">${shuffle(items).map((x) => `<button class="obj" data-w="${esc(x[0])}">${A.render(x[2])}</button>`).join("")}</div>
+          <p class="progress"><span id="cnt">${found}</span> / 8</p>
+        </section>`;
+      let busy = false;
+      const ask = () => { if (!targets[ti]) return; Speech.en(`Find the ${targets[ti][0].replace(/^a /, "")}.`, { el: $("#ask"), bubble: ["Find it!", "きこえた ものを タップ"] }); };
+      $("#ask").onclick = ask; withReplay(ask); setTimeout(ask, 300);
+      $$(".obj").forEach((b) => b.addEventListener("click", async () => {
+        if (b.classList.contains("got") || busy || !targets[ti]) return;
+        const t = targets[ti];
+        if (b.dataset.w === t[0]) {
+          busy = true;
+          b.classList.add("got"); found++; ti++; $("#cnt").textContent = found;
+          bump(b, true); Cheer.play("correct", pick(Cheer.LINES.correct));
+          await Speech.say(t[1], t[0], { noBubble: true });
+          busy = false;
+          if (ti < targets.length) setTimeout(ask, 300);
+          else if (board === 1) { board = 2; await wait(500); draw(); }
+          else { await wait(600); eccFinish(act, Math.max(0, 8 - miss), 8); }
+        } else { miss++; bump(b, false); setTimeout(ask, 500); }
+      }));
+    };
+    draw();
+  }
 
   // ---------------- 設定 ----------------
   function openSettings() {

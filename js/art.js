@@ -10,97 +10,111 @@
   const wrap = (inner, vb = "0 0 200 200", cls = "") =>
     `<svg class="art ${cls}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${inner}</svg>`;
 
-  // ---------------- 人物 ----------------
-  const SKIN = { tan: "#C98B5C", light: "#F4CBA4", deep: "#9C6440" };
+  // ---------------- 人物（ひと目で わかるように 特ちょうを はっきり） ----------------
+  // おとな：頭が小さく体が大きい／こども：頭が大きく体が小さい
+  // おじいちゃん：白い髪・はげ頭・めがね・白いひげ・ちょうネクタイ
+  // おばあちゃん：白いおだんご・めがね・ショール・ブローチ
+  // おとうさん：みじかい黒髪・ひげ・ネクタイ・スーツ　おかあさん：長い髪・口紅・イヤリング・ネックレス
+  // おにいさん：つんつん髪・パーカー　おねえさん：ふたつ結び・リボン・ワンピース
+  const SKIN = { tan: "#D49A6A", light: "#F6D0AE", deep: "#A86B45" };
   const PEOPLE = {
-    girl: { skin: SKIN.tan, shirt: "#E7848F", hair: "#2B1C19", style: "curly", bow: "#F07C93" },
-    mother: { skin: SKIN.tan, shirt: "#F6E58D", hair: "#5A3A22", style: "long" },
-    father: { skin: SKIN.deep, shirt: "#A7A9B4", hair: "#2B1C19", style: "short", beard: true, collar: "#BFE3F2" },
-    grandfather: { skin: SKIN.deep, shirt: "#5E8A3A", hair: "#C9C9CF", style: "bald", inner: "#FFFFFF" },
-    grandmother: { skin: SKIN.deep, shirt: "#C7A4D9", hair: "#C9C9CF", style: "bun", scarf: "#FFFFFF" },
-    sister: { skin: SKIN.tan, shirt: "#B48AD6", hair: "#2B1C19", style: "pigtails", bow: "#B48AD6" },
-    brother: { skin: SKIN.deep, shirt: "#4FA35B", hair: "#2B1C19", style: "curlyshort", hood: true },
-    sam: { skin: SKIN.light, shirt: "#5DA9E9", hair: "#F2C94C", style: "spiky" },
-    teacher: { skin: SKIN.light, shirt: "#FFFFFF", hair: "#8A5A35", style: "long", jacket: "#C2357A" }
+    girl: { kid: true, skin: SKIN.tan },
+    mother: { adult: true, skin: SKIN.tan },
+    father: { adult: true, skin: SKIN.deep },
+    grandfather: { adult: true, old: true, skin: SKIN.deep },
+    grandmother: { adult: true, old: true, skin: SKIN.deep },
+    sister: { kid: true, skin: SKIN.tan },
+    brother: { kid: true, skin: SKIN.deep },
+    sam: { kid: true, skin: SKIN.light },
+    teacher: { adult: true, skin: SKIN.light }
   };
-
-  function hairBack(p) {
-    const c = p.hair;
-    switch (p.style) {
-      case "curly": {
-        let out = "";
-        for (let i = 0; i < 11; i++) {
-          const a = Math.PI * (0.95 + (i / 10) * 1.1);
-          out += `<circle cx="${100 + Math.cos(a) * 60}" cy="${92 + Math.sin(a) * -58 + 20}" r="24" fill="${c}"/>`;
-        }
-        return out + `<ellipse cx="100" cy="98" rx="74" ry="66" fill="${c}"/>`;
-      }
-      case "long":
-        return `<path d="M38 92 C30 150 34 205 52 238 L148 238 C166 205 170 150 162 92 C150 40 50 40 38 92Z" fill="${c}" ${s3}/>`;
-      case "bun":
-        return `<circle cx="100" cy="34" r="22" fill="${c}" ${s3}/>`;
-      case "pigtails":
-        return `<circle cx="40" cy="112" r="20" fill="${c}" ${s3}/><circle cx="160" cy="112" r="20" fill="${c}" ${s3}/>
-          <path d="M44 86 l-14 -10 l2 18z M156 86 l14 -10 l-2 18z" fill="${p.bow}" ${s3}/>`;
-      default:
-        return "";
-    }
-  }
-  function hairFront(p) {
-    const c = p.hair;
-    switch (p.style) {
-      case "curly":
-        return `<path d="M50 84 C58 52 92 40 120 46 C140 50 152 66 152 86 C138 70 118 66 104 74 C94 62 70 64 50 84Z" fill="${c}"/>
-          <path d="M130 42 l18 -14 l4 20z M130 42 l22 6 l-12 14z" fill="${p.bow}" ${s3}/><circle cx="132" cy="44" r="5" fill="${p.bow}" ${s3}/>`;
-      case "long":
-        return `<path d="M46 92 C48 46 152 40 156 92 C140 66 112 56 84 62 C72 70 58 80 46 92Z" fill="${c}"/>`;
-      case "short":
-        return `<path d="M46 86 C46 36 154 36 154 86 C150 68 136 58 100 58 C66 58 52 68 46 86Z" fill="${c}"/>`;
-      case "bald":
-        return `<path d="M46 98 C40 70 52 58 62 64 C58 76 56 86 58 100Z M154 98 C160 70 148 58 138 64 C142 76 144 86 142 100Z" fill="${c}" ${s3}/>`;
-      case "bun":
-        return `<path d="M46 92 C42 50 158 50 154 92 C146 74 130 64 100 64 C70 64 54 74 46 92Z" fill="${c}"/>`;
-      case "pigtails":
-        return `<path d="M46 92 C46 44 154 44 154 92 C144 70 124 62 100 70 C80 62 56 70 46 92Z" fill="${c}"/>`;
-      case "curlyshort": {
-        let out = "";
-        for (let i = 0; i < 9; i++) {
-          const a = Math.PI * (1.08 + (i / 8) * 0.84);
-          out += `<circle cx="${100 + Math.cos(a) * 52}" cy="${90 + Math.sin(a) * 50}" r="16" fill="${c}"/>`;
-        }
-        return out;
-      }
-      case "spiky":
-        return `<path d="M44 92 L40 64 L58 70 L56 44 L76 58 L84 34 L98 54 L112 32 L120 56 L140 40 L138 64 L160 62 L154 92 C140 74 120 68 100 70 C80 68 58 76 44 92Z" fill="${c}"/>`;
-      default:
-        return "";
-    }
-  }
-  function body(p) {
-    let b = `<path d="M40 238 C40 180 62 156 100 156 C138 156 160 180 160 238Z" fill="${p.jacket || p.shirt}" ${S}/>`;
-    if (p.jacket) b += `<path d="M84 160 L100 200 L116 160Z" fill="${p.shirt}" ${s3}/>`;
-    if (p.collar) b += `<path d="M84 158 L100 178 L116 158Z" fill="${p.collar}" ${s3}/>`;
-    if (p.inner) b += `<path d="M82 160 L100 238 L118 160Z" fill="${p.inner}" ${s3}/>`;
-    if (p.scarf) b += `<path d="M76 160 C90 176 110 176 124 160 L112 190 L100 178 L88 190Z" fill="${p.scarf}" ${s3}/>`;
-    if (p.hood) b += `<path d="M66 166 C80 182 120 182 134 166" fill="none" ${s3}/><line x1="92" y1="182" x2="90" y2="204" ${s3}/><line x1="108" y1="182" x2="110" y2="204" ${s3}/>`;
-    return b;
-  }
-  function face(p, mood = "smile") {
-    const mouth =
-      mood === "open"
-        ? `<path d="M88 122 Q100 140 112 122 Z" fill="#F08A8A" ${s3}/>`
-        : `<path d="M88 122 Q100 134 112 122" fill="none" ${s3}/>`;
-    return `<circle cx="100" cy="98" r="52" fill="${p.skin}" ${S}/>
-      <ellipse cx="80" cy="100" rx="6" ry="8" fill="${INK}"/><ellipse cx="120" cy="100" rx="6" ry="8" fill="${INK}"/>
-      <circle cx="82" cy="97" r="2" fill="#fff"/><circle cx="122" cy="97" r="2" fill="#fff"/>
-      <circle cx="68" cy="116" r="7" fill="#F29BA0" opacity=".55"/><circle cx="132" cy="116" r="7" fill="#F29BA0" opacity=".55"/>
-      ${p.beard ? `<path d="M62 118 C70 150 130 150 138 118 C128 138 72 138 62 118Z" fill="${INK}" opacity=".35"/>` : ""}
-      ${mouth}`;
-  }
-  // 人物（上半身）。viewBox 200x240
   function person(kind, mood) {
     const p = PEOPLE[kind] || PEOPLE.girl;
-    return `<g class="person">${hairBack(p)}${body(p)}${face(p, mood)}${hairFront(p)}</g>`;
+    const kid = !p.adult;
+    const R = kid ? 56 : 44, HX = 100, HY = kid ? 100 : 84;
+    const ex = R * 0.38, ey = HY + R * 0.08;
+    const eyes = (lash) => `<ellipse cx="${HX - ex}" cy="${ey}" rx="${R * 0.11}" ry="${R * 0.15}" fill="${INK}"/><ellipse cx="${HX + ex}" cy="${ey}" rx="${R * 0.11}" ry="${R * 0.15}" fill="${INK}"/>
+      <circle cx="${HX - ex + 2}" cy="${ey - 3}" r="${R * 0.04}" fill="#fff"/><circle cx="${HX + ex + 2}" cy="${ey - 3}" r="${R * 0.04}" fill="#fff"/>
+      ${lash ? `<path d="M${HX - ex - 8} ${ey - 8} l-6 -5 M${HX - ex - 3} ${ey - 11} l-3 -6 M${HX + ex + 8} ${ey - 8} l6 -5 M${HX + ex + 3} ${ey - 11} l3 -6" ${s3}/>` : ""}`;
+    const cheeks = `<circle cx="${HX - R * 0.6}" cy="${HY + R * 0.38}" r="${R * 0.14}" fill="#F29BA0" opacity=".55"/><circle cx="${HX + R * 0.6}" cy="${HY + R * 0.38}" r="${R * 0.14}" fill="#F29BA0" opacity=".55"/>`;
+    const my = HY + R * 0.45;
+    const mouth = (lip) => mood === "open"
+      ? `<path d="M${HX - 11} ${my} Q${HX} ${my + 16} ${HX + 11} ${my} Z" fill="${lip || "#F08A8A"}" ${s3}/>`
+      : lip ? `<path d="M${HX - 11} ${my} Q${HX} ${my + 11} ${HX + 11} ${my} Q${HX} ${my + 3} ${HX - 11} ${my}Z" fill="${lip}" ${s3}/>` : `<path d="M${HX - 11} ${my} Q${HX} ${my + 11} ${HX + 11} ${my}" fill="none" ${s3}/>`;
+    const head = `<circle cx="${HX}" cy="${HY}" r="${R}" fill="${p.skin}" ${S}/><ellipse cx="${HX - R}" cy="${HY + 6}" rx="7" ry="10" fill="${p.skin}" ${s3}/><ellipse cx="${HX + R}" cy="${HY + 6}" rx="7" ry="10" fill="${p.skin}" ${s3}/>`;
+    const glasses = `<g fill="rgba(255,255,255,.25)" stroke="${INK}" stroke-width="4"><circle cx="${HX - ex}" cy="${ey}" r="${R * 0.27}"/><circle cx="${HX + ex}" cy="${ey}" r="${R * 0.27}"/></g><path d="M${HX - ex + R * 0.27} ${ey} Q${HX} ${ey - 6} ${HX + ex - R * 0.27} ${ey}" fill="none" stroke="${INK}" stroke-width="4"/>`;
+    const brows = (c, thick) => `<path d="M${HX - ex - 10} ${ey - R * 0.32} q10 -7 20 0 M${HX + ex - 10} ${ey - R * 0.32} q10 -7 20 0" fill="none" stroke="${c}" stroke-width="${thick || 4}" stroke-linecap="round"/>`;
+    const bodyAdult = (fill) => `<path d="M30 240 C30 178 58 150 100 150 C142 150 170 178 170 240Z" fill="${fill}" ${S}/>`;
+    const bodyKid = (fill) => `<path d="M50 240 C50 196 70 170 100 170 C130 170 150 196 150 240Z" fill="${fill}" ${S}/>`;
+    let back = "", bodyArt = "", front = "", extra = "";
+    switch (kind) {
+      case "grandfather":
+        bodyArt = bodyAdult("#FFFFFF") + `<path d="M48 240 C46 190 64 160 84 154 L100 210 L116 154 C136 160 154 190 152 240Z" fill="#4E7F34" ${S}/>
+          <path d="M86 156 L100 170 L114 156 L114 168 L100 162 L86 168Z" fill="#C0392B" ${s3}/><circle cx="100" cy="196" r="3" fill="${INK}"/><circle cx="100" cy="216" r="3" fill="${INK}"/>`;
+        front = `<path d="M${HX - R * 0.95} ${HY - 4} C${HX - R * 1.05} ${HY - 34} ${HX - R * 0.7} ${HY - 40} ${HX - R * 0.55} ${HY - 26} C${HX - R * 0.7} ${HY - 14} ${HX - R * 0.8} ${HY - 4} ${HX - R * 0.78} ${HY + 8}Z M${HX + R * 0.95} ${HY - 4} C${HX + R * 1.05} ${HY - 34} ${HX + R * 0.7} ${HY - 40} ${HX + R * 0.55} ${HY - 26} C${HX + R * 0.7} ${HY - 14} ${HX + R * 0.8} ${HY - 4} ${HX + R * 0.78} ${HY + 8}Z" fill="#F4F4F4" ${s3}/>
+          <path d="M${HX - 16} ${HY - R * 0.62} q16 -5 32 0 M${HX - 12} ${HY - R * 0.5} q12 -4 24 0" fill="none" stroke="${INK}" stroke-width="2.5" opacity=".45" stroke-linecap="round"/>
+          <ellipse cx="${HX - 10}" cy="${HY - R * 0.7}" rx="9" ry="5" fill="#fff" opacity=".35"/>`;
+        extra = brows("#F4F4F4", 7) + glasses + `<path d="M${HX - 22} ${my - 4} C${HX - 14} ${my - 14} ${HX - 4} ${my - 10} ${HX} ${my - 6} C${HX + 4} ${my - 10} ${HX + 14} ${my - 14} ${HX + 22} ${my - 4} C${HX + 12} ${my + 2} ${HX + 4} ${my - 2} ${HX} ${my - 2} C${HX - 4} ${my - 2} ${HX - 12} ${my + 2} ${HX - 22} ${my - 4}Z" fill="#F4F4F4" ${s3}/>`;
+        return `<g class="person">${bodyArt}${head}${front}${eyes()}${extra}${cheeks}${mood === "open" ? mouth() : ""}</g>`;
+      case "grandmother":
+        back = `<circle cx="${HX}" cy="${HY - R - 8}" r="20" fill="#EDEDED" ${s3}/>`;
+        bodyArt = bodyAdult("#B992D6") + `<path d="M40 214 C60 170 140 170 160 214 L148 240 L52 240Z" fill="#E8D7F1" ${s3}/><path d="M60 178 L100 214 L140 178" fill="none" ${s3}/><circle cx="100" cy="208" r="8" fill="#F2C94C" ${s3}/>`;
+        front = `<path d="M${HX - R - 6} ${HY + 10} C${HX - R - 14} ${HY - 40} ${HX - 20} ${HY - R - 14} ${HX} ${HY - R - 6} C${HX + 20} ${HY - R - 14} ${HX + R + 14} ${HY - 40} ${HX + R + 6} ${HY + 10} C${HX + R - 8} ${HY - 20} ${HX + 18} ${HY - R + 6} ${HX} ${HY - R + 12} C${HX - 18} ${HY - R + 6} ${HX - R + 8} ${HY - 20} ${HX - R - 6} ${HY + 10}Z" fill="#EDEDED" ${s3}/>`;
+        extra = glasses + `<circle cx="${HX - R - 2}" cy="${HY + 22}" r="5" fill="#fff" ${s3}/><circle cx="${HX + R + 2}" cy="${HY + 22}" r="5" fill="#fff" ${s3}/>`;
+        return `<g class="person">${back}${bodyArt}${head}${front}${eyes()}${extra}${cheeks}${mouth("#E57A8A")}</g>`;
+      case "father":
+        bodyArt = bodyAdult("#5B6577") + `<path d="M82 152 L100 176 L118 152Z" fill="#fff" ${s3}/><path d="M100 172 L92 182 L100 224 L108 182Z" fill="#2E86DE" ${s3}/><path d="M82 152 L72 200 L100 176Z M118 152 L128 200 L100 176Z" fill="#4A5363" ${s3}/>`;
+        front = `<path d="M${HX - R - 2} ${HY - 2} C${HX - R - 4} ${HY - R - 10} ${HX + R + 4} ${HY - R - 10} ${HX + R + 2} ${HY - 2} C${HX + R - 6} ${HY - R * 0.55} ${HX - 4} ${HY - R * 0.62} ${HX - 18} ${HY - R * 0.5} C${HX - 28} ${HY - R * 0.4} ${HX - R + 6} ${HY - R * 0.4} ${HX - R - 2} ${HY - 2}Z" fill="#241815" ${s3}/>`;
+        extra = brows("#241815", 6) + `<path d="M${HX - R * 0.78} ${HY + R * 0.3} C${HX - R * 0.7} ${HY + R * 1.1} ${HX + R * 0.7} ${HY + R * 1.1} ${HX + R * 0.78} ${HY + R * 0.3} C${HX + R * 0.5} ${HY + R * 0.75} ${HX - R * 0.5} ${HY + R * 0.75} ${HX - R * 0.78} ${HY + R * 0.3}Z" fill="#241815" opacity=".85"/>
+          <path d="M${HX - 18} ${my - 6} q9 -7 18 0 q9 -7 18 0" fill="#241815" ${s3}/>`;
+        return `<g class="person">${bodyArt}${head}${front}${eyes()}${extra}${mood === "open" ? `<path d="M${HX - 9} ${my + 2} Q${HX} ${my + 14} ${HX + 9} ${my + 2} Z" fill="#F08A8A" ${s3}/>` : `<path d="M${HX - 9} ${my + 3} Q${HX} ${my + 10} ${HX + 9} ${my + 3}" fill="none" stroke="#fff" stroke-width="3"/>`}</g>`;
+      case "mother":
+        back = `<path d="M${HX - R - 14} ${HY - 4} C${HX - R - 30} ${HY + 60} ${HX - R - 16} ${HY + 120} ${HX - R + 6} ${HY + 140} L${HX + R - 6} ${HY + 140} C${HX + R + 16} ${HY + 120} ${HX + R + 30} ${HY + 60} ${HX + R + 14} ${HY - 4} C${HX + R} ${HY - R - 22} ${HX - R} ${HY - R - 22} ${HX - R - 14} ${HY - 4}Z" fill="#6B3E1F" ${S}/>`;
+        bodyArt = bodyAdult("#F6D55C") + `<path d="M76 158 Q100 200 124 158" fill="none" stroke="#F2994A" stroke-width="5"/><circle cx="100" cy="186" r="7" fill="#F2994A" ${s3}/>`;
+        front = `<path d="M${HX - R - 4} ${HY + 6} C${HX - R} ${HY - R - 4} ${HX + R} ${HY - R - 4} ${HX + R + 4} ${HY + 6} C${HX + R - 10} ${HY - 22} ${HX + 10} ${HY - R + 2} ${HX - 6} ${HY - R * 0.7} C${HX - 18} ${HY - 22} ${HX - R + 4} ${HY - 14} ${HX - R - 4} ${HY + 6}Z" fill="#6B3E1F"/>`;
+        extra = `<circle cx="${HX - R - 1}" cy="${HY + 22}" r="6" fill="#F2C94C" ${s3}/><circle cx="${HX + R + 1}" cy="${HY + 22}" r="6" fill="#F2C94C" ${s3}/>` + brows("#6B3E1F", 3);
+        return `<g class="person">${back}${bodyArt}${head}${front}${eyes(true)}${extra}${cheeks}${mouth("#E0485A")}</g>`;
+      case "teacher":
+        back = `<circle cx="${HX + 30}" cy="${HY - R + 4}" r="18" fill="#8A5A35" ${s3}/>`;
+        bodyArt = bodyAdult("#C2357A") + `<path d="M84 152 L100 196 L116 152Z" fill="#fff" ${s3}/>`;
+        front = `<path d="M${HX - R - 2} ${HY + 4} C${HX - R} ${HY - R - 6} ${HX + R} ${HY - R - 6} ${HX + R + 2} ${HY + 4} C${HX + R - 12} ${HY - 22} ${HX - 10} ${HY - R + 4} ${HX - R - 2} ${HY + 4}Z" fill="#8A5A35"/>`;
+        return `<g class="person">${back}${bodyArt}${head}${front}${eyes(true)}${cheeks}${mouth("#E0485A")}</g>`;
+      case "brother": {
+        bodyArt = bodyKid("#3FA34D") + `<path d="M66 178 C80 196 120 196 134 178" fill="none" ${s3}/><line x1="90" y1="194" x2="88" y2="218" ${s3}/><line x1="110" y1="194" x2="112" y2="218" ${s3}/><rect x="80" y="214" width="40" height="18" rx="6" fill="#2E8B3E" ${s3}/>`;
+        let spikes = "";
+        const n = 9;
+        for (let i = 0; i < n; i++) {
+          const a = Math.PI * (1.05 + (i / n) * 0.9), a2 = Math.PI * (1.05 + ((i + 0.5) / n) * 0.9);
+          spikes += `${i ? "L" : "M"}${(HX + Math.cos(a) * (R + 2)).toFixed(1)} ${(HY + Math.sin(a) * (R + 2)).toFixed(1)} L${(HX + Math.cos(a2) * (R + 18)).toFixed(1)} ${(HY + Math.sin(a2) * (R + 18)).toFixed(1)} `;
+        }
+        const aEnd = Math.PI * 1.95;
+        spikes += `L${(HX + Math.cos(aEnd) * (R + 2)).toFixed(1)} ${(HY + Math.sin(aEnd) * (R + 2)).toFixed(1)}`;
+        front = `<path d="${spikes} C${HX + 20} ${HY - R * 0.45} ${HX - 20} ${HY - R * 0.45} ${(HX + Math.cos(Math.PI * 1.05) * (R + 2)).toFixed(1)} ${(HY + Math.sin(Math.PI * 1.05) * (R + 2)).toFixed(1)}Z" fill="#1E1412" ${s3}/>`;
+        extra = brows("#1E1412", 5);
+        return `<g class="person">${bodyArt}${head}${front}${eyes()}${extra}${cheeks}${mouth()}</g>`;
+      }
+      case "sister":
+        back = `<path d="M${HX - R - 4} ${HY - 6} C${HX - R - 30} ${HY + 4} ${HX - R - 30} ${HY + 50} ${HX - R - 12} ${HY + 70} C${HX - R - 2} ${HY + 50} ${HX - R + 4} ${HY + 20} ${HX - R + 4} ${HY}Z M${HX + R + 4} ${HY - 6} C${HX + R + 30} ${HY + 4} ${HX + R + 30} ${HY + 50} ${HX + R + 12} ${HY + 70} C${HX + R + 2} ${HY + 50} ${HX + R - 4} ${HY + 20} ${HX + R - 4} ${HY}Z" fill="#1E1412" ${s3}/>`;
+        bodyArt = bodyKid("#A06CD5") + `<path d="M76 176 L100 196 L124 176" fill="#fff" ${s3}/>`;
+        front = `<path d="M${HX - R - 2} ${HY + 4} C${HX - R} ${HY - R - 8} ${HX + R} ${HY - R - 8} ${HX + R + 2} ${HY + 4} C${HX + R - 4} ${HY - 18} ${HX + 26} ${HY - R * 0.38} ${HX} ${HY - R * 0.38} C${HX - 26} ${HY - R * 0.38} ${HX - R + 4} ${HY - 18} ${HX - R - 2} ${HY + 4}Z" fill="#1E1412" ${s3}/>
+          <path d="M${HX - R - 8} ${HY - 10} l-16 -12 l2 22z M${HX - R - 8} ${HY - 10} l-2 -20 l16 10z M${HX + R + 8} ${HY - 10} l16 -12 l-2 22z M${HX + R + 8} ${HY - 10} l2 -20 l-16 10z" fill="#E056A0" ${s3}/>`;
+        return `<g class="person">${back}${bodyArt}${head}${front}${eyes(true)}${cheeks}${mouth()}</g>`;
+      case "sam": {
+        bodyArt = bodyKid("#3B8FE0") + `<rect x="92" y="196" width="16" height="16" rx="3" fill="#FFD166" ${s3}/>`;
+        front = `<path d="M${HX - R - 2} ${HY + 2} L${HX - R - 12} ${HY - 26} L${HX - R + 8} ${HY - 22} L${HX - R + 2} ${HY - R - 4} L${HX - 18} ${HY - R + 4} L${HX - 10} ${HY - R - 18} L${HX + 6} ${HY - R + 2} L${HX + 22} ${HY - R - 16} L${HX + 24} ${HY - R + 6} L${HX + R} ${HY - R} L${HX + R - 6} ${HY - 22} L${HX + R + 14} ${HY - 18} L${HX + R + 2} ${HY + 2} C${HX + R - 12} ${HY - 26} ${HX - R + 12} ${HY - 26} ${HX - R - 2} ${HY + 2}Z" fill="#F7C531" ${s3}/>`;
+        extra = `<g fill="#C9774A"><circle cx="${HX - R * 0.58}" cy="${HY + R * 0.3}" r="2.5"/><circle cx="${HX - R * 0.48}" cy="${HY + R * 0.4}" r="2.5"/><circle cx="${HX - R * 0.68}" cy="${HY + R * 0.42}" r="2.5"/><circle cx="${HX + R * 0.58}" cy="${HY + R * 0.3}" r="2.5"/><circle cx="${HX + R * 0.48}" cy="${HY + R * 0.4}" r="2.5"/><circle cx="${HX + R * 0.68}" cy="${HY + R * 0.42}" r="2.5"/></g>`;
+        return `<g class="person">${bodyArt}${head}${front}${eyes()}${extra}${mouth()}</g>`;
+      }
+      default: { // girl（おはなしの 女の子）：くるくる髪＋ピンクのリボン
+        let curls = "";
+        for (let i = 0; i < 13; i++) { const a = Math.PI * (0.85 + (i / 12) * 1.3); curls += `<circle cx="${HX + Math.cos(a) * (R + 6)}" cy="${HY + 10 + Math.sin(a) * -(R + 2)}" r="${R * 0.42}" fill="#241815"/>`; }
+        back = curls + `<ellipse cx="${HX}" cy="${HY + 10}" rx="${R + 20}" ry="${R + 6}" fill="#241815"/>`;
+        bodyArt = bodyKid("#EE7F95") + `<path d="M88 176 L100 190 L112 176" fill="#fff" ${s3}/>`;
+        front = `<path d="M${HX - R + 2} ${HY - 6} C${HX - R + 8} ${HY - R - 6} ${HX + R - 8} ${HY - R - 6} ${HX + R - 2} ${HY - 6} C${HX + 20} ${HY - R * 0.6} ${HX - 10} ${HY - R * 0.4} ${HX - R + 2} ${HY - 6}Z" fill="#241815"/>
+          <path d="M${HX + 22} ${HY - R - 2} l20 -18 l6 26z M${HX + 22} ${HY - R - 2} l28 4 l-16 18z" fill="#FF7FA8" ${s3}/><circle cx="${HX + 24}" cy="${HY - R}" r="6" fill="#FF7FA8" ${s3}/>`;
+        return `<g class="person">${back}${bodyArt}${head}${front}${eyes(true)}${cheeks}${mouth()}</g>`;
+      }
+    }
   }
 
   // ---------------- もの ----------------
@@ -216,7 +230,7 @@
       case "clock":
         return wrap(clock(+arg), "0 0 200 200");
       case "face":
-        return wrap(person(arg), "20 10 160 160", "face");
+        return wrap(person(arg), "10 20 180 180", "face");
       case "person":
         return wrap(person(arg, extra.mood), "0 0 200 240");
       case "opp":
